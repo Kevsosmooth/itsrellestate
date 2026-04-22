@@ -71,13 +71,13 @@ export function YesNoToggle({
             onClick={() => onChange(opt.key)}
             onKeyDown={(e) => handleKeyDown(e, opt.key)}
             className={cn(
-              "relative z-10 flex items-center justify-center min-h-[40px] min-w-[72px] px-5",
+              "relative z-10 flex items-center justify-center min-h-[40px] px-4",
               "rounded-full text-sm font-medium transition-colors duration-200 cursor-pointer",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
               isSelected
                 ? opt.key === "yes"
                   ? "text-primary-foreground"
-                  : "text-text-primary"
+                  : "text-secondary-foreground"
                 : "text-text-secondary hover:text-text-primary",
             )}
           >
@@ -86,7 +86,7 @@ export function YesNoToggle({
                 layoutId={`toggle-bg-${name}`}
                 className={cn(
                   "absolute inset-0 rounded-full shadow-sm",
-                  opt.key === "yes" ? "bg-primary" : "bg-surface",
+                  opt.key === "yes" ? "bg-primary" : "bg-secondary",
                 )}
                 transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
               />

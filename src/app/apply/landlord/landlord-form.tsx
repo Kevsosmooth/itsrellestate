@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { FormWizard, useWizardContext } from "@/components/forms/form-wizard";
 import { FormField } from "@/components/forms/form-field";
 import { FormSection } from "@/components/forms/form-section";
@@ -41,7 +41,7 @@ import {
   UTIL_TRASH_OPTIONS,
   UTIL_AC_OPTIONS,
 } from "@/lib/form-constants";
-import { LANDLORD_STORAGE_KEY } from "@/lib/form-storage";
+import { LANDLORD_STORAGE_KEY, markSubmitted, getSubmitted } from "@/lib/form-storage";
 
 const STEPS: FormStepDef[] = [
   {
@@ -88,6 +88,15 @@ export function LandlordForm() {
   const [data, setData] = useState<LandlordFormData>(createEmptyLandlordForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submittedName, setSubmittedName] = useState("");
+
+  useEffect(() => {
+    const prev = getSubmitted(LANDLORD_STORAGE_KEY);
+    if (prev) {
+      setSubmittedName(prev.firstName);
+      setIsSubmitted(true);
+    }
+  }, []);
 
   const handleChange = useCallback((field: string, value: unknown) => {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -100,12 +109,13 @@ export function LandlordForm() {
   const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
     await new Promise((r) => setTimeout(r, 1200));
+    markSubmitted(LANDLORD_STORAGE_KEY, data.llFirstName);
     setIsSubmitting(false);
     setIsSubmitted(true);
-  }, []);
+  }, [data.llFirstName]);
 
   if (isSubmitted) {
-    return <FormSuccess type="landlord" firstName={data.llFirstName} />;
+    return <FormSuccess type="landlord" firstName={submittedName || data.llFirstName} />;
   }
 
   return (

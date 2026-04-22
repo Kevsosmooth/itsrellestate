@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { FormWizard, useWizardContext } from "@/components/forms/form-wizard";
 import { FormField } from "@/components/forms/form-field";
 import { FormSection } from "@/components/forms/form-section";
@@ -14,7 +14,7 @@ import { FormSuccess } from "@/components/forms/form-success";
 import type { TenantFormData, Occupant, FormStepDef } from "@/lib/form-types";
 import { createEmptyTenantForm } from "@/lib/form-types";
 import { formatPhone, formatZip, formatDOB } from "@/lib/form-formatters";
-import { TENANT_STORAGE_KEY } from "@/lib/form-storage";
+import { TENANT_STORAGE_KEY, markSubmitted, getSubmitted } from "@/lib/form-storage";
 import {
   BOROUGH_OPTIONS, US_STATES, ASSIST_PROGRAM_OPTIONS, VOUCHER_BEDROOM_OPTIONS,
   CREDIT_SCORE_OPTIONS, OCCUPANT_COUNT_OPTIONS, PAY_TYPE_OPTIONS,
@@ -41,6 +41,16 @@ export function TenantForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [refNumber, setRefNumber] = useState("");
+  const [submittedName, setSubmittedName] = useState("");
+
+  useEffect(() => {
+    const prev = getSubmitted(TENANT_STORAGE_KEY);
+    if (prev) {
+      setSubmittedName(prev.firstName);
+      setRefNumber(prev.referenceNumber ?? "");
+      setIsSubmitted(true);
+    }
+  }, []);
 
   const handleChange = useCallback((field: string, value: unknown) => {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -53,15 +63,16 @@ export function TenantForm() {
   const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
     await new Promise((r) => setTimeout(r, 1200));
+    markSubmitted(TENANT_STORAGE_KEY, data.firstName, refNumber);
     setIsSubmitting(false);
     setIsSubmitted(true);
-  }, []);
+  }, [data.firstName, refNumber]);
 
   if (isSubmitted) {
     return (
       <FormSuccess
         type="tenant"
-        firstName={data.firstName}
+        firstName={submittedName || data.firstName}
         referenceNumber={refNumber}
       />
     );

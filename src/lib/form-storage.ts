@@ -45,6 +45,31 @@ export function hasSavedState(key: string): boolean {
   return loadFormState(key) !== null;
 }
 
+interface SubmittedState {
+  firstName: string;
+  referenceNumber?: string;
+  submittedAt: number;
+}
+
+export function markSubmitted(key: string, firstName: string, referenceNumber?: string): void {
+  try {
+    const state: SubmittedState = { firstName, referenceNumber, submittedAt: Date.now() };
+    localStorage.setItem(`${key}-submitted`, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
+}
+
+export function getSubmitted(key: string): SubmittedState | null {
+  try {
+    const raw = localStorage.getItem(`${key}-submitted`);
+    if (!raw) return null;
+    return JSON.parse(raw) as SubmittedState;
+  } catch {
+    return null;
+  }
+}
+
 export function formatRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp;
   const minutes = Math.floor(diff / 60000);
