@@ -2,6 +2,7 @@
 
 import { RetroGrid } from "@/components/ui/retro-grid";
 import { Dock, DockIcon } from "@/components/ui/dock";
+import Image from "next/image";
 
 const SOCIAL_LINKS = [
   {
@@ -74,7 +75,13 @@ export function Footer() {
 
       <div className="relative z-10 mx-auto max-w-[1280px] px-6 md:px-8 lg:px-12">
         <div className="flex flex-col items-center text-center">
-          <p className="text-xl font-bold text-text-on-dark">Nyrell Nunez</p>
+          <Image
+            src="/images/logo.png"
+            alt="ItsRellEstate"
+            width={200}
+            height={105}
+            className="h-14 w-auto brightness-0 invert"
+          />
           <p className="mt-1 text-sm text-text-on-dark/70">
             Licensed Real Estate Agent | NYS Lic. #10401388953
           </p>

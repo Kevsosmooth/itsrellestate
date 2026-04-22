@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 
 const NAV_LINKS = [
   { label: "About", href: "/#about" },
@@ -66,9 +67,16 @@ export function Navbar() {
         >
           <a
             href="/"
-            className="text-lg font-bold text-text-primary whitespace-nowrap"
+            className="flex items-center shrink-0"
           >
-            Nyrell Nunez
+            <Image
+              src="/images/logo.png"
+              alt="ItsRellEstate"
+              width={140}
+              height={73}
+              className="h-14 w-auto"
+              priority
+            />
           </a>
 
           <div className="hidden md:flex items-center gap-8">

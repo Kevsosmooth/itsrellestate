@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: "Nyrell Nunez | Licensed NYC Real Estate Agent",
   description:
     "Licensed real estate agent serving all five boroughs of NYC. Specializing in CityFHEPS, Section 8, and HASA subsidy program navigation for tenants and landlords.",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({

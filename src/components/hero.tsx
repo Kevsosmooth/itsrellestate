@@ -15,7 +15,7 @@ export function Hero() {
   return (
     <section
       id="hero"
-      className="relative overflow-hidden bg-light pt-[72px] md:flex md:min-h-[calc(100svh-72px)] md:items-end"
+      className="relative overflow-hidden bg-light pt-[72px] md:flex md:min-h-[calc(100svh-72px)] md:items-stretch"
     >
       {/* Mobile image -- visible block at top */}
       <div className="relative h-[42svh] md:hidden">
@@ -23,27 +23,16 @@ export function Hero() {
           src="/images/nyc-building.jpg"
           alt="NYC brownstone apartment building"
           fill
-          className="rounded-b-3xl object-cover"
+          className="object-cover"
           priority
           sizes="100vw"
         />
-        <div className="absolute inset-0 rounded-b-3xl bg-dark/25" />
+        <div className="absolute inset-0 bg-dark/25" />
       </div>
 
-      {/* Desktop image -- full bleed background */}
-      <Image
-        src="/images/nyc-building.jpg"
-        alt="NYC brownstone apartment building"
-        fill
-        className="hidden object-cover md:block"
-        priority
-        sizes="100vw"
-      />
-      <div className="absolute inset-0 hidden bg-gradient-to-t from-dark/45 via-dark/20 to-dark/10 md:block" />
-
-      {/* Content */}
-      <div className="relative z-10 w-full px-6 py-8 md:mx-auto md:max-w-[1280px] md:px-8 md:py-20 lg:px-12">
-        <div className="md:max-w-2xl md:rounded-3xl md:bg-light/94 md:p-10 md:backdrop-blur-md md:shadow-card-hover">
+      {/* Content -- left 45% with overlapping card */}
+      <div className="relative z-20 w-full px-6 py-8 md:w-[45%] md:flex md:items-center md:py-20 md:pl-8 md:pr-0 lg:pl-12">
+        <div className="md:relative md:mr-[-80px] md:rounded-3xl md:bg-light/92 md:backdrop-blur-sm md:p-10 md:shadow-card-hover">
           <BlurFade delay={0.05} duration={0.4}>
             <p className="text-xs sm:text-sm font-medium text-text-secondary tracking-wide uppercase">
               CityFHEPS / Section 8 / HASA Specialist
@@ -113,6 +102,20 @@ export function Hero() {
             </div>
           </BlurFade>
         </div>
+      </div>
+
+      {/* Desktop image -- right 55% with overlays */}
+      <div className="hidden md:block md:w-[55%] relative">
+        <Image
+          src="/images/nyc-building.jpg"
+          alt="NYC brownstone apartment building"
+          fill
+          className="object-cover"
+          priority
+          sizes="55vw"
+        />
+        <div className="absolute inset-0 bg-dark/20" />
+        <div className="absolute inset-0 bg-gradient-to-r from-light/60 via-transparent to-transparent" />
       </div>
     </section>
   );

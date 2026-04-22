@@ -16,12 +16,12 @@ export function About() {
         <div className="flex flex-col md:flex-row md:items-center md:gap-12 lg:gap-16">
           <div className="flex-shrink-0 md:max-w-[40%]">
             <BlurFade delay={0.1} duration={0.5} inView>
-              <div className="relative mx-auto w-[280px] h-[340px] md:w-[320px] md:h-[400px] lg:w-[360px] lg:h-[440px] rounded-2xl overflow-hidden shadow-card-hover">
+              <div className="relative mx-auto w-[280px] h-[340px] md:w-[320px] md:h-[400px] lg:w-[360px] lg:h-[440px] rounded-2xl overflow-hidden shadow-card-hover bg-light shadow-[inset_0_-80px_60px_-20px_rgba(46,42,39,0.15)]">
                 <Image
-                  src="/nyrell-nunez-portrait.png"
+                  src="/nyrell-portrait.png"
                   alt="Nyrell Nunez"
                   fill
-                  className="object-cover object-top"
+                  className="object-contain object-bottom"
                   sizes="(max-width: 768px) 280px, (max-width: 1024px) 320px, 360px"
                 />
               </div>
