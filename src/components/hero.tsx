@@ -43,28 +43,32 @@ export function Hero() {
 
       {/* Content */}
       <div className="relative z-10 w-full px-6 py-8 md:mx-auto md:max-w-[1280px] md:px-8 md:py-20 lg:px-12">
-        <BlurFade delay={0.1} duration={0.5}>
-          <div className="md:max-w-2xl md:rounded-3xl md:bg-light/94 md:p-10 md:backdrop-blur-md md:shadow-card-hover">
+        <div className="md:max-w-2xl md:rounded-3xl md:bg-light/94 md:p-10 md:backdrop-blur-md md:shadow-card-hover">
+          <BlurFade delay={0.05} duration={0.4}>
             <p className="text-xs sm:text-sm font-medium text-text-secondary tracking-wide uppercase">
               CityFHEPS / Section 8 / HASA Specialist
             </p>
+          </BlurFade>
 
-            <div className="mt-3 md:mt-4">
-              <TextAnimate
-                as="h1"
-                animation="blurInUp"
-                by="word"
-                className="text-3xl sm:text-4xl md:text-5xl lg:text-[56px] font-extrabold leading-[1.1] text-text-primary"
-              >
-                Your Voucher. Your Home. I Handle the Rest.
-              </TextAnimate>
-            </div>
+          <div className="mt-3 md:mt-4">
+            <TextAnimate
+              as="h1"
+              animation="blurInUp"
+              by="word"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-[56px] font-extrabold leading-[1.1] text-text-primary"
+            >
+              Your Voucher. Your Home. I Handle the Rest.
+            </TextAnimate>
+          </div>
 
+          <BlurFade delay={0.2} duration={0.4}>
             <p className="mt-3 md:mt-5 text-base md:text-xl text-text-secondary max-w-lg leading-relaxed">
               I handle CityFHEPS, Section 8 &amp; HASA so you don&apos;t have
               to. From application to move-in day, I manage every step.
             </p>
+          </BlurFade>
 
+          <BlurFade delay={0.3} duration={0.4}>
             <div className="mt-5 md:mt-8 grid grid-cols-3 gap-3 sm:flex sm:gap-8 md:gap-12">
               {STATS.map((stat) => (
                 <div key={stat.label} className="flex flex-col">
@@ -78,7 +82,9 @@ export function Hero() {
                 </div>
               ))}
             </div>
+          </BlurFade>
 
+          <BlurFade delay={0.4} duration={0.4}>
             <div className="mt-6 sm:mt-10 flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
               <a
                 href="/#apply"
@@ -105,8 +111,8 @@ export function Hero() {
                 </svg>
               </a>
             </div>
-          </div>
-        </BlurFade>
+          </BlurFade>
+        </div>
       </div>
     </section>
   );
