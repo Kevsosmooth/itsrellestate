@@ -83,10 +83,10 @@ export function Footer() {
             className="h-14 w-auto brightness-0 invert"
           />
           <p className="mt-1 text-sm text-text-on-dark/70">
-            Licensed Real Estate Agent | NYS Lic. #10401388953
+            Licensed Real Estate Agent | NYS Lic. #10401396493
           </p>
           <p className="mt-1 text-xs text-text-on-dark/50">
-            Keller Williams Realty NYC | 99 Hudson St, New York, NY 10013
+            My Skyline Agent | 105-13 Metropolitan Ave, Forest Hills, NY 11375
           </p>
           <p className="mt-1 text-xs text-text-on-dark/50">
             (347) 555-0192 | nyrell@itsrellestate.com

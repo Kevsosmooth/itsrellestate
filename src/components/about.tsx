@@ -4,8 +4,8 @@ import Image from "next/image";
 import { BlurFade } from "@/components/ui/blur-fade";
 
 const CREDENTIALS = [
-  "NYS Licensed Real Estate Agent -- Lic. #10401388953",
-  "Affiliated with Keller Williams Realty NYC",
+  "NYS Licensed Real Estate Agent -- Lic. #10401396493",
+  "Associated with My Skyline Agent",
   "CityFHEPS, Section 8 & HASA Navigation",
 ] as const;
 
@@ -37,12 +37,13 @@ export function About() {
 
             <BlurFade delay={0.4} duration={0.5} inView>
               <p className="mt-5 text-base md:text-lg text-text-secondary leading-relaxed max-w-lg">
-                I&apos;m a licensed real estate agent serving all five boroughs
-                of New York City. I specialize in rental transactions with deep
-                experience in CityFHEPS, Section 8, HASA, and other subsidy
-                programs. My mission is to close the gap between tenants and
-                landlords — making the housing process simple, transparent, and
-                stress-free.
+                I&apos;m a licensed real estate agent based in New York, known
+                for a hands-on approach and deep understanding of the local
+                market. I work directly with developers, first-time buyers,
+                seasoned investors, and tenants to meet their goals. I
+                specialize in CityFHEPS, Section 8, HASA, and other subsidy
+                programs — making the housing process simple, transparent,
+                and stress-free.
               </p>
             </BlurFade>
 
@@ -78,7 +79,7 @@ export function About() {
 
             <BlurFade delay={0.9} duration={0.4} inView>
               <div className="mt-8 flex flex-col gap-2 text-xs sm:text-sm text-text-muted">
-                <p>Keller Williams Realty NYC | 99 Hudson St, New York, NY 10013</p>
+                <p>My Skyline Agent | 105-13 Metropolitan Ave, Forest Hills, NY 11375</p>
                 <p>Office: (212) 645-1800 | Direct: (347) 555-0192</p>
               </div>
             </BlurFade>
