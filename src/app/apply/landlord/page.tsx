@@ -1,11 +1,12 @@
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
+import { LandlordForm } from "./landlord-form";
 
 export default function LandlordApplyPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-[calc(100svh-200px)] pt-[120px] pb-20">
+      <main className="min-h-[calc(100svh-200px)] pt-[120px] pb-28 md:pb-20">
         <div className="mx-auto max-w-[640px] px-6 md:px-8">
           <h1 className="text-3xl md:text-4xl font-bold text-text-primary">
             Landlord Application
@@ -13,10 +14,8 @@ export default function LandlordApplyPage() {
           <p className="mt-3 text-base text-text-secondary">
             List your property and connect with qualified tenants.
           </p>
-          <div className="mt-10 rounded-2xl bg-surface p-8 text-center">
-            <p className="text-sm text-text-muted">
-              Application form coming soon.
-            </p>
+          <div className="mt-8 rounded-2xl bg-card border border-border shadow-card p-6 md:p-8">
+            <LandlordForm />
           </div>
         </div>
       </main>
