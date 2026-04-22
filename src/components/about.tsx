@@ -5,7 +5,7 @@ import { BlurFade } from "@/components/ui/blur-fade";
 
 const CREDENTIALS = [
   "NYS Licensed Real Estate Agent -- Lic. #10401396493",
-  "Associated with My Skyline Agent",
+  "Associated with Skyline Residential & Commercial",
   "CityFHEPS, Section 8 & HASA Navigation",
 ] as const;
 
@@ -16,12 +16,12 @@ export function About() {
         <div className="flex flex-col md:flex-row md:items-center md:gap-12 lg:gap-16">
           <div className="flex-shrink-0 md:max-w-[40%]">
             <BlurFade delay={0.1} duration={0.5} inView>
-              <div className="relative mx-auto w-[280px] h-[340px] md:w-[320px] md:h-[400px] lg:w-[360px] lg:h-[440px] rounded-2xl overflow-hidden shadow-card-hover bg-light shadow-[inset_0_-80px_60px_-20px_rgba(46,42,39,0.15)]">
+              <div className="relative mx-auto w-[280px] h-[340px] md:w-[320px] md:h-[400px] lg:w-[360px] lg:h-[440px] rounded-2xl overflow-hidden shadow-card-hover bg-gradient-to-b from-primary/10 to-secondary/10">
                 <Image
                   src="/nyrell-portrait.png"
                   alt="Nyrell Nunez"
                   fill
-                  className="object-contain object-bottom"
+                  className="object-contain object-bottom scale-115"
                   sizes="(max-width: 768px) 280px, (max-width: 1024px) 320px, 360px"
                 />
               </div>
@@ -79,8 +79,8 @@ export function About() {
 
             <BlurFade delay={0.9} duration={0.4} inView>
               <div className="mt-8 flex flex-col gap-2 text-xs sm:text-sm text-text-muted">
-                <p>My Skyline Agent | 105-13 Metropolitan Ave, Forest Hills, NY 11375</p>
-                <p>Office: (212) 645-1800 | Direct: (347) 555-0192</p>
+                <p>Skyline Residential & Commercial | 105-13 Metropolitan Ave, Forest Hills, NY 11375</p>
+                <p>(347) 325-5709 | nyrell@itsrellestate.com</p>
               </div>
             </BlurFade>
           </div>

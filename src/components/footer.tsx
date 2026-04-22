@@ -7,7 +7,7 @@ import Image from "next/image";
 const SOCIAL_LINKS = [
   {
     label: "Phone",
-    href: "tel:+13475550192",
+    href: "tel:+13473255709",
     icon: (
       <svg
         className="w-5 h-5"
@@ -41,8 +41,8 @@ const SOCIAL_LINKS = [
     ),
   },
   {
-    label: "Instagram",
-    href: "https://instagram.com/nyrell_nunez",
+    label: "Facebook",
+    href: "https://www.facebook.com/profile.php?id=61578096930313",
     icon: (
       <svg
         className="w-5 h-5"
@@ -53,9 +53,7 @@ const SOCIAL_LINKS = [
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+        <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
       </svg>
     ),
   },
@@ -86,10 +84,10 @@ export function Footer() {
             Licensed Real Estate Agent | NYS Lic. #10401396493
           </p>
           <p className="mt-1 text-xs text-text-on-dark/50">
-            My Skyline Agent | 105-13 Metropolitan Ave, Forest Hills, NY 11375
+            Skyline Residential & Commercial | 105-13 Metropolitan Ave, Forest Hills, NY 11375
           </p>
           <p className="mt-1 text-xs text-text-on-dark/50">
-            (347) 555-0192 | nyrell@itsrellestate.com
+            (347) 325-5709 | nyrell@itsrellestate.com
           </p>
 
           <Dock
@@ -101,9 +99,9 @@ export function Footer() {
               <DockIcon key={link.label}>
                 <a
                   href={link.href}
-                  target={link.label === "Instagram" ? "_blank" : undefined}
+                  target={link.label === "Facebook" ? "_blank" : undefined}
                   rel={
-                    link.label === "Instagram"
+                    link.label === "Facebook"
                       ? "noopener noreferrer"
                       : undefined
                   }
@@ -117,7 +115,22 @@ export function Footer() {
           </Dock>
         </div>
 
-        <div className="mt-10 border-t border-white/10 pt-6 text-center">
+        <div className="mt-10 border-t border-white/10 pt-6 flex flex-col items-center gap-3 text-center">
+          <div className="flex items-center gap-4">
+            <a
+              href="/terms"
+              className="text-xs text-text-on-dark/50 transition-colors duration-200 hover:text-text-on-dark/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Terms of Service
+            </a>
+            <span className="text-text-on-dark/30" aria-hidden="true">|</span>
+            <a
+              href="/privacy"
+              className="text-xs text-text-on-dark/50 transition-colors duration-200 hover:text-text-on-dark/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Privacy Policy
+            </a>
+          </div>
           <p className="text-xs text-text-on-dark/50">
             &copy; {new Date().getFullYear()} Nyrell Nunez. All rights reserved.
           </p>

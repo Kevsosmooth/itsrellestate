@@ -69,14 +69,22 @@ export function Navbar() {
             href="/"
             className="flex items-center shrink-0"
           >
-            <Image
-              src="/images/logo.png"
-              alt="ItsRellEstate"
-              width={140}
-              height={73}
-              className="h-14 w-auto"
-              priority
-            />
+            <motion.div
+              initial={false}
+              animate={{
+                height: scrolled ? 36 : 56,
+              }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+            >
+              <Image
+                src="/images/logo.png"
+                alt="ItsRellEstate"
+                width={140}
+                height={73}
+                className="h-full w-auto"
+                priority
+              />
+            </motion.div>
           </a>
 
           <div className="hidden md:flex items-center gap-8">

@@ -75,6 +75,8 @@
   --animate-marquee: marquee var(--duration) infinite linear;
   --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
   --animate-shine: shine var(--duration) infinite linear;
+  --animate-pipeline-connector-wave: pipeline-connector-wave 2.8s ease-in-out infinite;
+  --animate-pipeline-connector-wave-vertical: pipeline-connector-wave-vertical 1s ease-in-out infinite;
 
   @keyframes shimmer-slide {
     to {
@@ -133,8 +135,6 @@
     }
   }
 
-  --animate-pipeline-connector-wave: pipeline-connector-wave 2.4s ease-in-out infinite;
-
   @keyframes pipeline-connector-wave-vertical {
     0% {
       opacity: 0;
@@ -156,8 +156,6 @@
       transform: translateY(240%);
     }
   }
-
-  --animate-pipeline-connector-wave-vertical: pipeline-connector-wave-vertical 1.6s ease-in-out infinite;
 
   @keyframes shine {
     0% {
@@ -181,5 +179,13 @@
   }
   html {
     @apply scroll-smooth font-sans;
+  }
+}
+
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
