@@ -22,7 +22,7 @@ function ProjectCard({ project }: { project: Project }) {
 
   return (
     <div
-      className="w-[280px] shrink-0 snap-start md:w-auto cursor-pointer [perspective:1000px]"
+      className="w-full cursor-pointer [perspective:1000px]"
       onClick={() => setFlipped((f) => !f)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -35,18 +35,18 @@ function ProjectCard({ project }: { project: Project }) {
       aria-label={`${project.name} — click to ${flipped ? "see photo" : "read the story"}`}
     >
       <div
-        className="relative w-full transition-transform duration-500 [transform-style:preserve-3d]"
+        className="relative w-full aspect-[3/4] md:aspect-[4/5] transition-transform duration-500 [transform-style:preserve-3d]"
         style={{ transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)" }}
       >
         {/* Front -- building photo */}
-        <div className="[backface-visibility:hidden] rounded-2xl bg-card shadow-card overflow-hidden">
-          <div className="relative aspect-[4/5]">
+        <div className="absolute inset-0 [backface-visibility:hidden] rounded-2xl bg-card shadow-card overflow-hidden flex flex-col">
+          <div className="relative flex-1">
             <Image
               src={project.image}
               alt={`${project.name}, ${project.borough}`}
               fill
               className="object-cover"
-              sizes="(max-width: 768px) 280px, (max-width: 1024px) 50vw, 33vw"
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-dark/60 via-transparent to-transparent" />
             <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
@@ -175,7 +175,7 @@ export function PastProjects() {
           </div>
         </BlurFade>
 
-        <div className="mt-12 md:mt-16 flex gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 -mx-6 px-6 md:mx-0 md:px-0 md:overflow-visible md:grid md:grid-cols-3">
+        <div className="mt-12 md:mt-16 grid grid-cols-1 gap-6 md:grid-cols-3">
           {PROJECTS.map((project, index) => (
             <BlurFade
               key={project.id}
