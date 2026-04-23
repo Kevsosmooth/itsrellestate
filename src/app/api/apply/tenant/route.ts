@@ -3,6 +3,7 @@ import {
   createApplicantFolder,
   saveApplicationJSON,
   appendSheetRow,
+  sendNotificationEmail,
 } from "@/lib/google";
 import { tenantSchema, sanitizeForStorage } from "@/lib/validation";
 
@@ -39,11 +40,17 @@ export async function POST(request: Request) {
     const applicantName = `${body.firstName} ${body.lastName}`.trim();
     const timestamp = new Date().toISOString();
 
-    const { folderId, folderLink, uploadsFolderId } = await createApplicantFolder(
-      tenantFolderId,
-      applicantName,
-      "tenant",
-    );
+    const over18Names = body.occupants
+      .filter((o) => o.over18 === "yes" && o.name.trim())
+      .map((o) => o.name.trim());
+
+    const { folderId, folderLink, uploadsFolderId, occupantFolderIds } =
+      await createApplicantFolder(
+        tenantFolderId,
+        applicantName,
+        "tenant",
+        over18Names,
+      );
 
     const dataForStorage = { ...body, submittedAt: timestamp };
     delete (dataForStorage as Record<string, unknown>).paymentConfirmed;
@@ -113,10 +120,28 @@ export async function POST(request: Request) {
       folderLink,
     ]);
 
+    await sendNotificationEmail({
+      formType: "tenant",
+      applicantName,
+      applicantEmail: body.email,
+      applicantPhone: body.cellPhone,
+      highlights: [
+        { label: "Phone", value: body.cellPhone },
+        { label: "Email", value: body.email },
+        { label: "Borough", value: body.preferredBorough },
+        { label: "Program", value: body.assistProgram || body.otherProgramName || "None" },
+        { label: "Voucher Beds", value: body.voucherBedrooms },
+        { label: "From Shelter", value: body.fromShelter === "yes" ? "Yes" : "No" },
+        { label: "Occupants", value: body.hasOccupants === "yes" ? body.occupantCount : "None" },
+        { label: "Submitted", value: new Date(timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) },
+      ],
+    }).catch((err) => console.error("Notification email failed:", err));
+
     return NextResponse.json({
       success: true,
       folderLink,
       uploadsFolderId,
+      occupantFolderIds,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

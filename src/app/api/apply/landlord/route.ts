@@ -3,6 +3,7 @@ import {
   createApplicantFolder,
   saveApplicationJSON,
   appendSheetRow,
+  sendNotificationEmail,
 } from "@/lib/google";
 import { landlordSchema, maskSensitiveField, sanitizeForStorage } from "@/lib/validation";
 
@@ -112,6 +113,25 @@ export async function POST(request: Request) {
       `${body.signatureFirst} ${body.signatureLast}`,
       folderLink,
     ]);
+
+    const propAddress = `${body.propAddress}${body.propAddress2 ? ` ${body.propAddress2}` : ""}, ${body.propCity}`;
+    const unitsSummary = body.units.map((u) => `Unit ${u.unitNumber} (${u.bedrooms}BR)`).join(", ");
+
+    await sendNotificationEmail({
+      formType: "landlord",
+      applicantName,
+      applicantEmail: body.llEmail,
+      applicantPhone: body.llPhone,
+      highlights: [
+        { label: "Phone", value: body.llPhone },
+        { label: "Email", value: body.llEmail },
+        { label: "Property", value: propAddress },
+        { label: "Units", value: unitsSummary },
+        { label: "Ownership", value: body.ownershipType === "individual" ? "Individual" : "Business Entity" },
+        { label: "Payment Pref", value: body.paymentPreference },
+        { label: "Submitted", value: new Date(timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) },
+      ],
+    }).catch((err) => console.error("Notification email failed:", err));
 
     return NextResponse.json({
       success: true,

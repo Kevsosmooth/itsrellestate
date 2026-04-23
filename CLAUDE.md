@@ -213,6 +213,72 @@ No AI co-author attribution. No emojis.
 - All Magic UI components must be adapted to use project Tailwind tokens, not their default hardcoded values
 - Framer Motion is a peer dependency of Magic UI
 
+## Git Worktrees (Parallel Development)
+
+This project uses git worktrees to allow multiple Claude sessions to work on separate branches simultaneously without interfering with each other.
+
+### Why Worktrees
+
+A normal `git checkout` switches the entire working directory to a different branch. If multiple terminals or Claude sessions share one checkout, switching branches in one disrupts all others. Worktrees solve this by giving each branch its own independent directory, all backed by the same `.git` history.
+
+### Creating a Worktree
+
+```bash
+# From the project root (this directory)
+git worktree add ../itsrellestate-<branch-name> <branch-name>
+```
+
+This creates a sibling directory with the branch already checked out. Example:
+
+```bash
+git worktree add ../itsrellestate-feature-uploads feature/uploads
+# Now ../itsrellestate-feature-uploads/ is on feature/uploads
+# This directory stays on whatever branch it was on
+```
+
+If the branch does not exist yet, create it in one step:
+
+```bash
+git worktree add -b feature/new-thing ../itsrellestate-feature-new-thing
+```
+
+### Running and Testing in a Worktree
+
+Each worktree is a full project directory. To work in it:
+
+```bash
+cd ../itsrellestate-feature-uploads
+pnpm install          # install deps (node_modules is per-worktree)
+pnpm dev --port 3001  # use a different port so it does not collide
+```
+
+You do NOT switch branches. You `cd` into the worktree folder and run everything there. The main directory stays untouched on its branch.
+
+### Merging Back
+
+```bash
+# Return to main
+cd /volume1/playground/itsrellestate
+git merge feature/uploads
+```
+
+To minimize conflicts, split work by file or feature so different worktrees touch different files.
+
+### Cleanup
+
+```bash
+git worktree remove ../itsrellestate-feature-uploads
+git branch -d feature/uploads  # after merge
+```
+
+### Rules
+
+- Never `git checkout` to switch branches in a worktree that other sessions are using. Create a new worktree instead.
+- Use a unique dev server port per worktree to avoid port collisions.
+- Run `pnpm install` in each new worktree since `node_modules` is not shared.
+- Keep branches short-lived. Merge frequently to avoid divergence.
+- Delete worktrees and branches promptly after merging.
+
 ## Open Questions
 
 - Form fields for tenant and landlord applications (Nyrell will provide)

@@ -54,6 +54,7 @@ export function FormWizard({
   const [savedTimestamp, setSavedTimestamp] = useState<number | null>(null);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const hasInteracted = useRef(false);
   const stepContentRef = useRef<HTMLDivElement>(null);
   const liveRef = useRef<HTMLDivElement>(null);
 
@@ -70,6 +71,7 @@ export function FormWizard({
     if (saved) {
       onBulkRestore(saved.data);
       setCurrentStep(saved.currentStep);
+      hasInteracted.current = true;
     }
     setShowResumeBanner(false);
   }, [storageKey, onBulkRestore]);
@@ -80,7 +82,7 @@ export function FormWizard({
   }, [storageKey]);
 
   useEffect(() => {
-    if (showResumeBanner) return;
+    if (showResumeBanner || !hasInteracted.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveFormState(storageKey, data, currentStep);
@@ -138,6 +140,7 @@ export function FormWizard({
 
   const handleFieldChange = useCallback(
     (field: string, value: unknown) => {
+      hasInteracted.current = true;
       onChange(field, value);
       if (errors[field]) {
         setErrors((prev) => {

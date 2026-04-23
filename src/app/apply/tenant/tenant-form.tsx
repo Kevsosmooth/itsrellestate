@@ -114,16 +114,43 @@ function validateTenantStep5Docs(
   return errors;
 }
 
+function buildPrefixedFilename(
+  category: DocCategory,
+  originalName: string,
+  usedNames: Set<string>,
+): string {
+  const prefix = DOC_CATEGORY_CONFIGS[category].label.replace(/[^a-zA-Z0-9]+/g, "-");
+  const ext = originalName.includes(".") ? originalName.slice(originalName.lastIndexOf(".")) : "";
+  const base = originalName.includes(".")
+    ? originalName.slice(0, originalName.lastIndexOf("."))
+    : originalName;
+  const safeBase = base.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+
+  let candidate = `${prefix}_${safeBase}${ext}`;
+  let counter = 2;
+  while (usedNames.has(candidate.toLowerCase())) {
+    candidate = `${prefix}_${safeBase}-${counter}${ext}`;
+    counter++;
+  }
+  usedNames.add(candidate.toLowerCase());
+  return candidate;
+}
+
 async function uploadAllStagedFiles(
   attachments: StagedAttachments,
   uploadsFolderId: string,
 ): Promise<void> {
-  const allFiles = Object.values(attachments).flat();
-  for (const staged of allFiles) {
-    const formData = new FormData();
-    formData.append("file", staged.file);
-    formData.append("folderId", uploadsFolderId);
-    await fetch("/api/upload", { method: "POST", body: formData });
+  const usedNames = new Set<string>();
+  const entries = Object.entries(attachments) as [DocCategory, typeof attachments[DocCategory]][];
+  for (const [category, files] of entries) {
+    for (const staged of files) {
+      const prefixedName = buildPrefixedFilename(category, staged.fileName, usedNames);
+      const renamedFile = new File([staged.file], prefixedName, { type: staged.file.type });
+      const formData = new FormData();
+      formData.append("file", renamedFile);
+      formData.append("folderId", uploadsFolderId);
+      await fetch("/api/upload", { method: "POST", body: formData });
+    }
   }
 }
 
