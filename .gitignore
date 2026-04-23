@@ -25,3 +25,7 @@ pnpm-debug.log*
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+
+# local files
+downloads/
+setup-google.mjs

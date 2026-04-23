@@ -95,6 +95,47 @@ export const INCOME_SOURCE_OPTIONS = [
   { value: "na", label: "N/A" },
 ] as const;
 
+export const DOC_CATEGORIES = [
+  "photoId",
+  "socialSecurityCard",
+  "voucherCoverLetter",
+  "pinLetter",
+  "cashAssistBudgetLetter",
+  "ssiAwardLetter",
+  "foodStampsLetter",
+  "fullVoucher",
+  "taxReturns",
+  "bankStatement",
+  "letterOfResidency",
+  "landlordRecommendation",
+  "other",
+] as const;
+
+export type DocCategory = (typeof DOC_CATEGORIES)[number];
+
+export interface DocCategoryConfig {
+  key: DocCategory;
+  label: string;
+  helperText?: string;
+  maxFiles: number;
+}
+
+export const DOC_CATEGORY_CONFIGS: Record<DocCategory, DocCategoryConfig> = {
+  photoId: { key: "photoId", label: "Photo ID", helperText: "Front of a valid government-issued photo ID.", maxFiles: 3 },
+  socialSecurityCard: { key: "socialSecurityCard", label: "Social Security Card", helperText: "Front of your Social Security card.", maxFiles: 3 },
+  voucherCoverLetter: { key: "voucherCoverLetter", label: "Voucher Cover Letter", maxFiles: 5 },
+  pinLetter: { key: "pinLetter", label: "PIN Letter", maxFiles: 3 },
+  cashAssistBudgetLetter: { key: "cashAssistBudgetLetter", label: "Cash Assistance Budget Letter", maxFiles: 5 },
+  ssiAwardLetter: { key: "ssiAwardLetter", label: "SSI Award Letter", maxFiles: 5 },
+  foodStampsLetter: { key: "foodStampsLetter", label: "Food Stamps (SNAP) Proof", helperText: "SNAP award letter or recent benefit notice.", maxFiles: 5 },
+  fullVoucher: { key: "fullVoucher", label: "Full Voucher (All Pages)", maxFiles: 10 },
+  taxReturns: { key: "taxReturns", label: "Tax Returns (Last 2 Years)", helperText: "Most recent and prior year.", maxFiles: 10 },
+  bankStatement: { key: "bankStatement", label: "Most Recent Bank Statement", maxFiles: 10 },
+  letterOfResidency: { key: "letterOfResidency", label: "Letter of Residency", maxFiles: 3 },
+  landlordRecommendation: { key: "landlordRecommendation", label: "Landlord Recommendation Letter", maxFiles: 3 },
+  other: { key: "other", label: "Other Supporting Documents", helperText: "Any additional documents not listed above.", maxFiles: 10 },
+};
+
 export const OWNERSHIP_TYPE_OPTIONS = [
   { value: "llc", label: "LLC" },
   { value: "corporation", label: "Corporation" },

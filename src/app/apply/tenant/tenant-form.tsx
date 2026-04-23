@@ -11,37 +11,131 @@ import { RepeaterField } from "@/components/forms/repeater-field";
 import { ConditionalBlock } from "@/components/forms/conditional-block";
 import { PaymentStep } from "@/components/forms/payment-step";
 import { FormSuccess } from "@/components/forms/form-success";
-import type { TenantFormData, Occupant, FormStepDef } from "@/lib/form-types";
-import { createEmptyTenantForm } from "@/lib/form-types";
+import { FileUpload } from "@/components/forms/file-upload";
+import type { TenantFormData, Occupant, FormStepDef, StagedAttachments } from "@/lib/form-types";
+import { createEmptyTenantForm, createEmptyStagedAttachments } from "@/lib/form-types";
 import { formatPhone, formatZip, formatDOB } from "@/lib/form-formatters";
 import { TENANT_STORAGE_KEY, markSubmitted, getSubmitted } from "@/lib/form-storage";
 import {
   BOROUGH_OPTIONS, US_STATES, ASSIST_PROGRAM_OPTIONS, VOUCHER_BEDROOM_OPTIONS,
   CREDIT_SCORE_OPTIONS, OCCUPANT_COUNT_OPTIONS, PAY_TYPE_OPTIONS,
   PAY_FREQUENCY_OPTIONS, INCOME_SOURCE_OPTIONS, SECTION_8_PROGRAMS,
+  DOC_CATEGORY_CONFIGS, type DocCategory,
 } from "@/lib/form-constants";
 import {
   validateTenantStep1, validateTenantStep2, validateTenantStep3,
   validateTenantStep4, validateTenantStep5, validateTenantStep6,
 } from "@/lib/form-step-validators";
 
-const STEPS: FormStepDef[] = [
-  { id: "contact", label: "Contact Info", shortLabel: "Contact", validate: (d) => validateTenantStep1(d as unknown as TenantFormData) },
-  { id: "assistance", label: "Rental Assistance", shortLabel: "Assistance", validate: (d) => validateTenantStep2(d as unknown as TenantFormData) },
-  { id: "occupants", label: "Occupants & Work", shortLabel: "Occupants", validate: (d) => validateTenantStep3(d as unknown as TenantFormData) },
-  { id: "income", label: "Income & Specialist", shortLabel: "Income", validate: (d) => validateTenantStep4(d as unknown as TenantFormData) },
-  { id: "payment", label: "Processing Fee", shortLabel: "Payment", validate: (d) => validateTenantStep5(d as unknown as TenantFormData) },
-  { id: "authorization", label: "Authorization", shortLabel: "Sign", validate: (d) => validateTenantStep6(d as unknown as TenantFormData) },
-];
+function buildSteps(stagedAttachments: StagedAttachments): FormStepDef[] {
+  return [
+    { id: "contact", label: "Contact Info", shortLabel: "Contact", validate: (d) => validateTenantStep1(d as unknown as TenantFormData) },
+    { id: "assistance", label: "Rental Assistance", shortLabel: "Assistance", validate: (d) => validateTenantStep2(d as unknown as TenantFormData) },
+    { id: "occupants", label: "Occupants & Work", shortLabel: "Occupants", validate: (d) => validateTenantStep3(d as unknown as TenantFormData) },
+    { id: "income", label: "Income & Specialist", shortLabel: "Income", validate: (d) => validateTenantStep4(d as unknown as TenantFormData) },
+    { id: "documents", label: "Documents", shortLabel: "Docs", validate: (d) => validateTenantStep5Docs(d as unknown as TenantFormData, stagedAttachments) },
+    { id: "payment", label: "Processing Fee", shortLabel: "Payment", validate: (d) => validateTenantStep5(d as unknown as TenantFormData) },
+    { id: "authorization", label: "Authorization", shortLabel: "Sign", validate: (d) => validateTenantStep6(d as unknown as TenantFormData) },
+  ];
+}
 
 let occupantIdCounter = 1;
 
+function getRequiredDocCategories(data: TenantFormData): DocCategory[] {
+  const required: DocCategory[] = ["photoId", "socialSecurityCard"];
+  const isSection8 = SECTION_8_PROGRAMS.includes(data.assistProgram as typeof SECTION_8_PROGRAMS[number]);
+  const isCityFHEPS = data.assistProgram === "CityFHEPS";
+  const isNoProgram = data.hasAssistance === "no";
+  const isHASA = data.assistProgram === "HASA";
+  const isOther = data.assistProgram === "Other";
+
+  if (isSection8) {
+    required.push("voucherCoverLetter", "pinLetter");
+  }
+  if (data.incomeSources.includes("cash-assistance")) {
+    required.push("cashAssistBudgetLetter");
+  }
+  if (data.incomeSources.includes("ssi")) {
+    required.push("ssiAwardLetter");
+  }
+  if (data.incomeSources.includes("food-stamps")) {
+    required.push("foodStampsLetter");
+  }
+  if (isCityFHEPS) {
+    required.push("fullVoucher");
+  }
+  if (isNoProgram || isHASA || isOther) {
+    required.push("taxReturns", "bankStatement");
+  }
+  return required;
+}
+
+function getVisibleDocCategories(data: TenantFormData): DocCategory[] {
+  const visible: DocCategory[] = ["photoId", "socialSecurityCard"];
+  const isSection8 = SECTION_8_PROGRAMS.includes(data.assistProgram as typeof SECTION_8_PROGRAMS[number]);
+  const isCityFHEPS = data.assistProgram === "CityFHEPS";
+  const isNoProgram = data.hasAssistance === "no";
+  const isHASA = data.assistProgram === "HASA";
+  const isOther = data.assistProgram === "Other";
+
+  if (isSection8) {
+    visible.push("voucherCoverLetter", "pinLetter");
+  }
+  if (data.incomeSources.includes("cash-assistance")) {
+    visible.push("cashAssistBudgetLetter");
+  }
+  if (data.incomeSources.includes("ssi")) {
+    visible.push("ssiAwardLetter");
+  }
+  if (data.incomeSources.includes("food-stamps")) {
+    visible.push("foodStampsLetter");
+  }
+  if (isCityFHEPS) {
+    visible.push("fullVoucher");
+  }
+  if (isNoProgram || isHASA || isOther) {
+    visible.push("letterOfResidency", "landlordRecommendation", "taxReturns", "bankStatement");
+  }
+  visible.push("other");
+  return visible;
+}
+
+function validateTenantStep5Docs(
+  data: TenantFormData,
+  stagedAttachments: StagedAttachments,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const required = getRequiredDocCategories(data);
+  for (const cat of required) {
+    if (stagedAttachments[cat].length === 0) {
+      errors[`doc:${cat}`] = `${DOC_CATEGORY_CONFIGS[cat].label} is required`;
+    }
+  }
+  return errors;
+}
+
+async function uploadAllStagedFiles(
+  attachments: StagedAttachments,
+  uploadsFolderId: string,
+): Promise<void> {
+  const allFiles = Object.values(attachments).flat();
+  for (const staged of allFiles) {
+    const formData = new FormData();
+    formData.append("file", staged.file);
+    formData.append("folderId", uploadsFolderId);
+    await fetch("/api/upload", { method: "POST", body: formData });
+  }
+}
+
 export function TenantForm() {
   const [data, setData] = useState<TenantFormData>(createEmptyTenantForm);
+  const [stagedAttachments, setStagedAttachments] = useState<StagedAttachments>(createEmptyStagedAttachments);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [refNumber, setRefNumber] = useState("");
   const [submittedName, setSubmittedName] = useState("");
+
+  const steps = buildSteps(stagedAttachments);
 
   useEffect(() => {
     const prev = getSubmitted(TENANT_STORAGE_KEY);
@@ -62,11 +156,26 @@ export function TenantForm() {
 
   const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    markSubmitted(TENANT_STORAGE_KEY, data.firstName, refNumber);
-    setIsSubmitting(false);
-    setIsSubmitted(true);
-  }, [data.firstName, refNumber]);
+    try {
+      const res = await fetch("/api/apply/tenant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Submission failed");
+      const result = await res.json();
+
+      const totalFiles = Object.values(stagedAttachments).flat().length;
+      if (totalFiles > 0 && result.uploadsFolderId) {
+        await uploadAllStagedFiles(stagedAttachments, result.uploadsFolderId);
+      }
+
+      markSubmitted(TENANT_STORAGE_KEY, data.firstName, refNumber);
+      setIsSubmitted(true);
+    } catch {
+      setIsSubmitting(false);
+    }
+  }, [data, stagedAttachments, refNumber]);
 
   if (isSubmitted) {
     return (
@@ -80,7 +189,7 @@ export function TenantForm() {
 
   return (
     <FormWizard
-      steps={STEPS}
+      steps={steps}
       data={data as unknown as Record<string, unknown>}
       onChange={handleChange}
       onBulkRestore={handleBulkRestore}
@@ -90,6 +199,8 @@ export function TenantForm() {
           data={data}
           onChange={handleChange}
           onRefNumber={setRefNumber}
+          stagedAttachments={stagedAttachments}
+          setStagedAttachments={setStagedAttachments}
         />
       )}
       onSubmit={handleSubmit}
@@ -105,11 +216,15 @@ function TenantStep({
   data,
   onChange,
   onRefNumber,
+  stagedAttachments,
+  setStagedAttachments,
 }: {
   step: number;
   data: TenantFormData;
   onChange: (field: string, value: unknown) => void;
   onRefNumber?: (ref: string) => void;
+  stagedAttachments: StagedAttachments;
+  setStagedAttachments: React.Dispatch<React.SetStateAction<StagedAttachments>>;
 }) {
   const { errors } = useWizardContext();
 
@@ -118,8 +233,16 @@ function TenantStep({
     case 1: return <Step2Assistance data={data} onChange={onChange} errors={errors} />;
     case 2: return <Step3Occupants data={data} onChange={onChange} errors={errors} />;
     case 3: return <Step4Income data={data} onChange={onChange} errors={errors} />;
-    case 4: return <Step5Payment data={data} onChange={onChange} errors={errors} onRefNumber={onRefNumber} />;
-    case 5: return <Step6Auth data={data} onChange={onChange} errors={errors} />;
+    case 4: return (
+      <StepDocuments
+        data={data}
+        errors={errors}
+        stagedAttachments={stagedAttachments}
+        setStagedAttachments={setStagedAttachments}
+      />
+    );
+    case 5: return <Step5Payment data={data} onChange={onChange} errors={errors} onRefNumber={onRefNumber} />;
+    case 6: return <Step6Auth data={data} onChange={onChange} errors={errors} />;
     default: return null;
   }
 }
@@ -685,9 +808,13 @@ function Step4Income({ data, onChange, errors }: StepProps) {
 
       <FormSection
         heading="Housing Specialist"
-        description="If you have a housing specialist or case worker, provide their contact information."
+        description={
+          data.fromShelter === "yes"
+            ? "Since you are coming from a shelter, please provide your housing specialist's contact information."
+            : "If you have a housing specialist or case worker, provide their contact information."
+        }
       >
-        <FormField name="housingSpecName" label="Name" error={errors.housingSpecName}>
+        <FormField name="housingSpecName" label="Name" required={data.fromShelter === "yes"} error={errors.housingSpecName}>
           <FormInput
             value={data.housingSpecName}
             onChange={(e) => onChange("housingSpecName", e.target.value)}
@@ -695,7 +822,7 @@ function Step4Income({ data, onChange, errors }: StepProps) {
           />
         </FormField>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <FormField name="housingSpecPhone" label="Phone" error={errors.housingSpecPhone}>
+          <FormField name="housingSpecPhone" label="Phone" required={data.fromShelter === "yes"} error={errors.housingSpecPhone}>
             <FormInput
               value={data.housingSpecPhone}
               onChange={(e) => onChange("housingSpecPhone", formatPhone(e.target.value))}
@@ -703,7 +830,7 @@ function Step4Income({ data, onChange, errors }: StepProps) {
               placeholder="(555) 555-5555"
             />
           </FormField>
-          <FormField name="housingSpecEmail" label="Email" error={errors.housingSpecEmail}>
+          <FormField name="housingSpecEmail" label="Email" required={data.fromShelter === "yes"} error={errors.housingSpecEmail}>
             <FormInput
               type="email"
               value={data.housingSpecEmail}
@@ -712,6 +839,76 @@ function Step4Income({ data, onChange, errors }: StepProps) {
             />
           </FormField>
         </div>
+      </FormSection>
+    </div>
+  );
+}
+
+function StepDocuments({
+  data,
+  errors,
+  stagedAttachments,
+  setStagedAttachments,
+}: {
+  data: TenantFormData;
+  errors: Record<string, string>;
+  stagedAttachments: StagedAttachments;
+  setStagedAttachments: React.Dispatch<React.SetStateAction<StagedAttachments>>;
+}) {
+  const visibleCategories = getVisibleDocCategories(data);
+  const requiredCategories = getRequiredDocCategories(data);
+  const requiredSet = new Set(requiredCategories);
+
+  const requiredLabels = requiredCategories.map((cat) => DOC_CATEGORY_CONFIGS[cat].label);
+
+  return (
+    <div className="flex flex-col gap-0">
+      <FormSection heading="Required Documents">
+        <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
+          <p className="text-sm font-semibold text-text-primary mb-2">
+            Please upload the following documents:
+          </p>
+          <ul className="list-disc list-inside space-y-1">
+            {requiredLabels.map((label) => (
+              <li key={label} className="text-sm text-text-secondary">{label}</li>
+            ))}
+          </ul>
+          <p className="text-xs text-text-muted mt-3">
+            PDF, DOC, JPG, or PNG accepted. Max 25MB per file. Documents are not uploaded until you submit.
+          </p>
+        </div>
+      </FormSection>
+
+      <FormSection heading="Upload Documents">
+        {visibleCategories.map((cat) => {
+          const config = DOC_CATEGORY_CONFIGS[cat];
+          const isRequired = requiredSet.has(cat);
+          const hasError = !!errors[`doc:${cat}`];
+
+          return (
+            <FileUpload
+              key={cat}
+              label={config.label}
+              helperText={config.helperText ?? "PDF, images, or Word docs up to 25MB each."}
+              required={isRequired}
+              error={hasError}
+              maxFiles={config.maxFiles}
+              stagedFiles={stagedAttachments[cat]}
+              onFilesStaged={(files) =>
+                setStagedAttachments((prev) => ({
+                  ...prev,
+                  [cat]: [...prev[cat], ...files],
+                }))
+              }
+              onFileRemoved={(index) =>
+                setStagedAttachments((prev) => ({
+                  ...prev,
+                  [cat]: prev[cat].filter((_, i) => i !== index),
+                }))
+              }
+            />
+          );
+        })}
       </FormSection>
     </div>
   );

@@ -97,8 +97,14 @@ export function validateTenantStep4(data: TenantFormData): ValidationErrors {
   if (data.incomeSources.includes("other") && !data.otherIncomeSource.trim()) {
     e.otherIncomeSource = "Specify the other income source";
   }
-  if (data.housingSpecPhone) e.housingSpecPhone = v.phone(data.housingSpecPhone);
-  if (data.housingSpecEmail) e.housingSpecEmail = v.email(data.housingSpecEmail);
+  if (data.fromShelter === "yes") {
+    e.housingSpecName = v.required(data.housingSpecName, "Housing specialist name");
+    e.housingSpecPhone = v.required(data.housingSpecPhone, "Housing specialist phone") ?? v.phone(data.housingSpecPhone);
+    e.housingSpecEmail = v.required(data.housingSpecEmail, "Housing specialist email") ?? v.email(data.housingSpecEmail);
+  } else {
+    if (data.housingSpecPhone) e.housingSpecPhone = v.phone(data.housingSpecPhone);
+    if (data.housingSpecEmail) e.housingSpecEmail = v.email(data.housingSpecEmail);
+  }
   return clean(e);
 }
 

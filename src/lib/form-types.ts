@@ -1,3 +1,8 @@
+import type { StagedFile } from "@/components/forms/file-upload";
+import type { DocCategory } from "@/lib/form-constants";
+
+export type StagedAttachments = Record<DocCategory, StagedFile[]>;
+
 export interface FormStepDef {
   id: string;
   label: string;
@@ -179,6 +184,15 @@ export function createEmptyTenantForm(): TenantFormData {
     paymentConfirmed: false,
     isSmoker: "", hasPets: "", disclosureAgreed: false,
     signatureFirst: "", signatureLast: "",
+  };
+}
+
+export function createEmptyStagedAttachments(): StagedAttachments {
+  return {
+    photoId: [], socialSecurityCard: [], voucherCoverLetter: [], pinLetter: [],
+    cashAssistBudgetLetter: [], ssiAwardLetter: [], foodStampsLetter: [],
+    fullVoucher: [], taxReturns: [], bankStatement: [], letterOfResidency: [],
+    landlordRecommendation: [], other: [],
   };
 }
 

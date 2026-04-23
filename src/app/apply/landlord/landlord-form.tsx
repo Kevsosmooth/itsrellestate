@@ -10,6 +10,7 @@ import { YesNoToggle } from "@/components/forms/yes-no-toggle";
 import { RepeaterField } from "@/components/forms/repeater-field";
 import { ConditionalBlock } from "@/components/forms/conditional-block";
 import { FormSuccess } from "@/components/forms/form-success";
+import { FileUpload, type StagedFile } from "@/components/forms/file-upload";
 import type { FormStepDef, LandlordFormData, RentalUnit } from "@/lib/form-types";
 import { createEmptyLandlordForm } from "@/lib/form-types";
 import {
@@ -69,6 +70,12 @@ const STEPS: FormStepDef[] = [
     validate: (d) => validateLandlordStep4(d as unknown as LandlordFormData),
   },
   {
+    id: "documents",
+    label: "Documents",
+    shortLabel: "Docs",
+    validate: () => ({}),
+  },
+  {
     id: "payments",
     label: "Payments & POC",
     shortLabel: "Payments",
@@ -84,8 +91,21 @@ const STEPS: FormStepDef[] = [
 
 let unitIdCounter = 2;
 
+async function uploadStagedFiles(
+  files: StagedFile[],
+  uploadsFolderId: string,
+): Promise<void> {
+  for (const staged of files) {
+    const formData = new FormData();
+    formData.append("file", staged.file);
+    formData.append("folderId", uploadsFolderId);
+    await fetch("/api/upload", { method: "POST", body: formData });
+  }
+}
+
 export function LandlordForm() {
   const [data, setData] = useState<LandlordFormData>(createEmptyLandlordForm);
+  const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedName, setSubmittedName] = useState("");
@@ -106,13 +126,35 @@ export function LandlordForm() {
     setData(restored as unknown as LandlordFormData);
   }, []);
 
+  const handleFilesStaged = useCallback((files: StagedFile[]) => {
+    setStagedFiles((prev) => [...prev, ...files]);
+  }, []);
+
+  const handleFileRemoved = useCallback((index: number) => {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    markSubmitted(LANDLORD_STORAGE_KEY, data.llFirstName);
-    setIsSubmitting(false);
-    setIsSubmitted(true);
-  }, [data.llFirstName]);
+    try {
+      const res = await fetch("/api/apply/landlord", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Submission failed");
+      const result = await res.json();
+
+      if (stagedFiles.length > 0 && result.uploadsFolderId) {
+        await uploadStagedFiles(stagedFiles, result.uploadsFolderId);
+      }
+
+      markSubmitted(LANDLORD_STORAGE_KEY, data.llFirstName);
+      setIsSubmitted(true);
+    } catch {
+      setIsSubmitting(false);
+    }
+  }, [data, stagedFiles]);
 
   if (isSubmitted) {
     return <FormSuccess type="landlord" firstName={submittedName || data.llFirstName} />;
@@ -125,7 +167,14 @@ export function LandlordForm() {
       onChange={handleChange}
       onBulkRestore={handleBulkRestore}
       renderStep={(stepIndex) => (
-        <LandlordStep step={stepIndex} data={data} onChange={handleChange} />
+        <LandlordStep
+          step={stepIndex}
+          data={data}
+          onChange={handleChange}
+          stagedFiles={stagedFiles}
+          onFilesStaged={handleFilesStaged}
+          onFileRemoved={handleFileRemoved}
+        />
       )}
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}
@@ -139,10 +188,16 @@ function LandlordStep({
   step,
   data,
   onChange,
+  stagedFiles,
+  onFilesStaged,
+  onFileRemoved,
 }: {
   step: number;
   data: LandlordFormData;
   onChange: (field: string, value: unknown) => void;
+  stagedFiles: StagedFile[];
+  onFilesStaged: (files: StagedFile[]) => void;
+  onFileRemoved: (index: number) => void;
 }) {
   const { errors } = useWizardContext();
 
@@ -156,8 +211,16 @@ function LandlordStep({
     case 3:
       return <Step4Units data={data} onChange={onChange} errors={errors} />;
     case 4:
-      return <Step5PaymentsPOC data={data} onChange={onChange} errors={errors} />;
+      return (
+        <StepDocuments
+          stagedFiles={stagedFiles}
+          onFilesStaged={onFilesStaged}
+          onFileRemoved={onFileRemoved}
+        />
+      );
     case 5:
+      return <Step5PaymentsPOC data={data} onChange={onChange} errors={errors} />;
+    case 6:
       return <Step6Signature data={data} onChange={onChange} errors={errors} />;
     default:
       return null;
@@ -168,6 +231,35 @@ interface StepProps {
   data: LandlordFormData;
   onChange: (field: string, value: unknown) => void;
   errors: Record<string, string>;
+}
+
+/* ---------- Step: Documents ---------- */
+
+function StepDocuments({
+  stagedFiles,
+  onFilesStaged,
+  onFileRemoved,
+}: {
+  stagedFiles: StagedFile[];
+  onFilesStaged: (files: StagedFile[]) => void;
+  onFileRemoved: (index: number) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      <FormSection
+        heading="Supporting Documents"
+        description="Upload any documents related to your property listing. These are securely stored and only accessible to the agent. Documents are not uploaded until you submit."
+      >
+        <FileUpload
+          label="Documents"
+          helperText="Deed, lease templates, proof of ownership, HPD registration, or any other supporting documents. PDF, DOC, JPG, or PNG accepted."
+          stagedFiles={stagedFiles}
+          onFilesStaged={onFilesStaged}
+          onFileRemoved={onFileRemoved}
+        />
+      </FormSection>
+    </div>
+  );
 }
 
 /* ---------- Step 1: Property Address + Legal Ownership + Banking ---------- */
