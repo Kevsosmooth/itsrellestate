@@ -170,7 +170,6 @@ export function LandlordForm() {
         <LandlordStep
           step={stepIndex}
           data={data}
-          onChange={handleChange}
           stagedFiles={stagedFiles}
           onFilesStaged={handleFilesStaged}
           onFileRemoved={handleFileRemoved}
@@ -187,19 +186,17 @@ export function LandlordForm() {
 function LandlordStep({
   step,
   data,
-  onChange,
   stagedFiles,
   onFilesStaged,
   onFileRemoved,
 }: {
   step: number;
   data: LandlordFormData;
-  onChange: (field: string, value: unknown) => void;
   stagedFiles: StagedFile[];
   onFilesStaged: (files: StagedFile[]) => void;
   onFileRemoved: (index: number) => void;
 }) {
-  const { errors } = useWizardContext();
+  const { errors, onChange } = useWizardContext();
 
   switch (step) {
     case 0:

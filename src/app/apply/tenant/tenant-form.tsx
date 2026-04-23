@@ -224,7 +224,6 @@ export function TenantForm() {
         <TenantStep
           step={stepIndex}
           data={data}
-          onChange={handleChange}
           onRefNumber={setRefNumber}
           stagedAttachments={stagedAttachments}
           setStagedAttachments={setStagedAttachments}
@@ -241,19 +240,17 @@ export function TenantForm() {
 function TenantStep({
   step,
   data,
-  onChange,
   onRefNumber,
   stagedAttachments,
   setStagedAttachments,
 }: {
   step: number;
   data: TenantFormData;
-  onChange: (field: string, value: unknown) => void;
   onRefNumber?: (ref: string) => void;
   stagedAttachments: StagedAttachments;
   setStagedAttachments: React.Dispatch<React.SetStateAction<StagedAttachments>>;
 }) {
-  const { errors } = useWizardContext();
+  const { errors, onChange } = useWizardContext();
 
   switch (step) {
     case 0: return <Step1Contact data={data} onChange={onChange} errors={errors} />;
