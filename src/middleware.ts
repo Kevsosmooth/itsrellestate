@@ -33,23 +33,27 @@ export async function middleware(request: NextRequest) {
 
   if (!pathname.startsWith("/api/")) return NextResponse.next();
 
-  const ip = getIP(request);
-  const isUpload = pathname === "/api/upload";
-  const limiter = isUpload ? uploadLimiter : formLimiter;
-  const { success, remaining, reset } = await limiter.limit(ip);
+  try {
+    const ip = getIP(request);
+    const isUpload = pathname === "/api/upload";
+    const limiter = isUpload ? uploadLimiter : formLimiter;
+    const { success, remaining, reset } = await limiter.limit(ip);
 
-  if (!success) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again later." },
-      {
-        status: 429,
-        headers: {
-          "X-RateLimit-Remaining": remaining.toString(),
-          "X-RateLimit-Reset": reset.toString(),
-          "Retry-After": Math.ceil((reset - Date.now()) / 1000).toString(),
+    if (!success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Remaining": remaining.toString(),
+            "X-RateLimit-Reset": reset.toString(),
+            "Retry-After": Math.ceil((reset - Date.now()) / 1000).toString(),
+          },
         },
-      },
-    );
+      );
+    }
+  } catch {
+    // Rate limiting unavailable -- allow the request through
   }
 
   return NextResponse.next();
