@@ -72,7 +72,6 @@ export function FormWizard({
     const saved = loadFormState<Record<string, unknown>>(storageKey);
     if (saved) {
       onBulkRestore(saved.data);
-      setCurrentStep(saved.currentStep);
       hasInteracted.current = true;
     }
     setShowResumeBanner(false);
@@ -126,14 +125,15 @@ export function FormWizard({
   }, [currentStep, steps]);
 
   const handleSubmit = useCallback(() => {
-    const stepErrors = steps[currentStep].validate(data);
-    if (Object.keys(stepErrors).length > 0) {
-      setErrors(stepErrors);
-      const firstErrorKey = Object.keys(stepErrors)[0];
-      const el = document.getElementById(firstErrorKey);
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-      el?.focus();
-      return;
+    for (let i = 0; i < steps.length; i++) {
+      const stepErrors = steps[i].validate(data);
+      if (Object.keys(stepErrors).length > 0) {
+        setDirection(i < currentStep ? -1 : 1);
+        setCurrentStep(i);
+        setErrors(stepErrors);
+        stepContentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
     }
     setErrors({});
     clearFormState(storageKey);

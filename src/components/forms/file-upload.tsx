@@ -195,7 +195,7 @@ export function FileUpload({
       {stagedFiles.map((file, index) => (
         <div
           key={file.id}
-          className="flex items-center gap-2 px-3 py-2.5 bg-surface/50 rounded-md mt-2 border-l-3 border-primary min-w-0"
+          className="flex items-center gap-2 px-3 py-2.5 bg-surface/50 rounded-md mt-2 border-l-2 border-primary min-w-0"
         >
           <svg
             width="16"
