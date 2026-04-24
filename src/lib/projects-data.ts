@@ -1,3 +1,5 @@
+export type ProjectStatus = "upcoming" | "current" | "completed";
+
 export interface Project {
   readonly id: string;
   readonly name: string;
@@ -9,6 +11,7 @@ export interface Project {
   readonly image: string;
   readonly description: string;
   readonly programs: readonly string[];
+  readonly status: ProjectStatus;
 }
 
 export const PROJECTS: readonly Project[] = [
@@ -24,6 +27,7 @@ export const PROJECTS: readonly Project[] = [
     description:
       "A 48-unit high-rise development with modern amenities. Managed tenant placement across multiple subsidy programs.",
     programs: ["CityFHEPS", "Section 8"],
+    status: "upcoming",
   },
   {
     id: "bronx-morris-heights",
@@ -37,6 +41,7 @@ export const PROJECTS: readonly Project[] = [
     description:
       "A renovated 24-unit walk-up blending classic Bronx architecture with updated interiors. Full tenant placement and landlord coordination.",
     programs: ["CityFHEPS", "HASA"],
+    status: "upcoming",
   },
   {
     id: "queens-forest-hills",
@@ -50,5 +55,6 @@ export const PROJECTS: readonly Project[] = [
     description:
       "A 36-unit mixed-use mid-rise in Forest Hills. Ground-floor retail with residential above. Coordinated placements across CityFHEPS and Section 8.",
     programs: ["CityFHEPS", "Section 8"],
+    status: "upcoming",
   },
 ] as const;

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
+import { AnimatePresence, motion } from "framer-motion";
 import { BlurFade } from "@/components/ui/blur-fade";
-import { PROJECTS, type Project } from "@/lib/projects-data";
+import { PROJECTS, type Project, type ProjectStatus } from "@/lib/projects-data";
 
 const PROGRAM_BADGE: Record<string, string> = {
   CityFHEPS: "bg-primary/10 text-primary",
@@ -11,11 +12,23 @@ const PROGRAM_BADGE: Record<string, string> = {
   HASA: "bg-success/10 text-success",
 };
 
-const STATS = [
-  { value: "3+", label: "Buildings Completed" },
-  { value: "100+", label: "Units Placed" },
-  { value: "3", label: "Boroughs Served" },
-] as const;
+const STATUS_CONFIG: Record<ProjectStatus, { dot: string; label: string }> = {
+  upcoming: { dot: "bg-warning", label: "Upcoming" },
+  current: { dot: "bg-primary", label: "In Progress" },
+  completed: { dot: "bg-success", label: "Completed" },
+};
+
+const TABS: { key: ProjectStatus; label: string }[] = [
+  { key: "upcoming", label: "Upcoming" },
+  { key: "current", label: "Current" },
+  { key: "completed", label: "Completed" },
+];
+
+const EMPTY_MESSAGES: Record<ProjectStatus, string> = {
+  upcoming: "No upcoming projects at the moment.",
+  current: "No projects in progress right now.",
+  completed: "Completed projects will appear here.",
+};
 
 function ProjectCard({ project }: { project: Project }) {
   const [flipped, setFlipped] = useState(false);
@@ -69,8 +82,8 @@ function ProjectCard({ project }: { project: Project }) {
             <div className="mt-3 flex items-center justify-between">
               <p className="text-sm text-text-muted">{project.units} units</p>
               <p className="flex items-center gap-1.5 text-xs text-text-muted">
-                <span className="inline-block w-2 h-2 rounded-full bg-success" />
-                Completed {project.year}
+                <span className={`inline-block w-2 h-2 rounded-full ${STATUS_CONFIG[project.status].dot}`} />
+                {STATUS_CONFIG[project.status].label} {project.year}
               </p>
             </div>
           </div>
@@ -107,7 +120,7 @@ function ProjectCard({ project }: { project: Project }) {
                     {project.year}
                   </p>
                   <p className="text-xs uppercase tracking-wide text-text-muted">
-                    Year
+                    {STATUS_CONFIG[project.status].label}
                   </p>
                 </div>
                 <div className="text-right">
@@ -138,14 +151,48 @@ function ProjectCard({ project }: { project: Project }) {
   );
 }
 
+function computeStats(projects: Project[]) {
+  if (projects.length === 0) {
+    return [
+      { value: "--", label: "Buildings" },
+      { value: "--", label: "Units" },
+      { value: "--", label: "Boroughs Served" },
+    ];
+  }
+  const totalUnits = projects.reduce((sum, p) => sum + p.units, 0);
+  const boroughs = new Set(projects.map((p) => p.borough)).size;
+  return [
+    { value: `${projects.length}`, label: "Buildings" },
+    { value: `${totalUnits}`, label: "Units" },
+    { value: `${boroughs}`, label: "Boroughs Served" },
+  ];
+}
+
 export function PastProjects() {
+  const [activeTab, setActiveTab] = useState<ProjectStatus>("upcoming");
+
+  const counts = useMemo(() => {
+    const map: Record<ProjectStatus, number> = { upcoming: 0, current: 0, completed: 0 };
+    for (const p of PROJECTS) {
+      map[p.status]++;
+    }
+    return map;
+  }, []);
+
+  const filtered = useMemo(
+    () => PROJECTS.filter((p) => p.status === activeTab),
+    [activeTab],
+  );
+
+  const stats = useMemo(() => computeStats(filtered), [filtered]);
+
   return (
-    <section id="recent-placements" className="bg-surface py-14 md:py-20">
+    <section id="projects" className="bg-surface py-14 md:py-20">
       <div className="mx-auto max-w-[1280px] px-6 md:px-8 lg:px-12">
         <BlurFade delay={0.1} duration={0.5} inView>
           <div className="text-center">
             <h2 className="text-3xl md:text-4xl font-bold text-text-primary">
-              Recent Projects
+              Projects
             </h2>
             <p className="mt-3 text-base md:text-lg text-text-secondary max-w-xl mx-auto">
               From high-rises to walk-ups, every building tells a story.
@@ -153,20 +200,67 @@ export function PastProjects() {
           </div>
         </BlurFade>
 
+        {/* Tabs */}
+        <BlurFade delay={0.15} duration={0.4} inView>
+          <div
+            className="mt-8 flex items-center justify-center gap-6 md:gap-10"
+            role="tablist"
+            aria-label="Project categories"
+          >
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls="projects-grid"
+                  onClick={() => setActiveTab(tab.key)}
+                  className="relative min-h-[44px] px-1 py-2 text-sm font-semibold uppercase tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  style={{ color: isActive ? "var(--color-primary)" : "var(--color-text-muted)" }}
+                >
+                  {tab.label}
+                  <span className="ml-1.5 text-text-muted font-normal">
+                    ({counts[tab.key]})
+                  </span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="projects-tab-underline"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </BlurFade>
+
+        {/* Stats */}
         <BlurFade delay={0.2} duration={0.4} inView>
-          <div className="mt-8 flex items-center justify-center gap-6 md:gap-10">
-            {STATS.map((stat, index) => (
+          <div className="mt-6 flex items-center justify-center gap-6 md:gap-10">
+            {stats.map((stat, index) => (
               <div
                 key={stat.label}
                 className={`flex flex-col items-center text-center ${
-                  index < STATS.length - 1
+                  index < stats.length - 1
                     ? "pr-6 md:pr-10 border-r border-border"
                     : ""
                 }`}
               >
-                <span className="text-2xl md:text-3xl font-bold text-primary">
-                  {stat.value}
-                </span>
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={`${activeTab}-${stat.value}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-2xl md:text-3xl font-bold text-primary"
+                  >
+                    {stat.value}
+                  </motion.span>
+                </AnimatePresence>
                 <span className="mt-1 text-xs md:text-sm text-text-secondary">
                   {stat.label}
                 </span>
@@ -175,17 +269,45 @@ export function PastProjects() {
           </div>
         </BlurFade>
 
-        <div className="mt-12 md:mt-16 grid grid-cols-1 gap-6 md:grid-cols-3">
-          {PROJECTS.map((project, index) => (
-            <BlurFade
-              key={project.id}
-              delay={0.3 + index * 0.15}
-              duration={0.4}
-              inView
-            >
-              <ProjectCard project={project} />
-            </BlurFade>
-          ))}
+        {/* Project grid or empty state */}
+        <div id="projects-grid" role="tabpanel" aria-label={`${activeTab} projects`}>
+          <AnimatePresence mode="wait">
+            {filtered.length > 0 ? (
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="mt-12 md:mt-16 grid grid-cols-1 gap-6 md:grid-cols-3"
+              >
+                {filtered.map((project, index) => (
+                  <BlurFade
+                    key={project.id}
+                    delay={0.1 + index * 0.15}
+                    duration={0.4}
+                    inView
+                  >
+                    <ProjectCard project={project} />
+                  </BlurFade>
+                ))}
+              </motion.div>
+            ) : (
+              <motion.div
+                key={`empty-${activeTab}`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="mt-12 md:mt-16 flex flex-col items-center justify-center min-h-[280px] md:min-h-[320px]"
+              >
+                <span className={`inline-block w-3 h-3 rounded-full ${STATUS_CONFIG[activeTab].dot}`} />
+                <p className="mt-3 text-sm text-text-muted">
+                  {EMPTY_MESSAGES[activeTab]}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </section>
