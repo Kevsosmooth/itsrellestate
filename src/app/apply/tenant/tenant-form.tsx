@@ -159,6 +159,7 @@ export function TenantForm() {
   const [stagedAttachments, setStagedAttachments] = useState<StagedAttachments>(createEmptyStagedAttachments);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [refNumber, setRefNumber] = useState("");
   const [submittedName, setSubmittedName] = useState("");
 
@@ -183,13 +184,17 @@ export function TenantForm() {
 
   const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
+    setSubmitError("");
     try {
       const res = await fetch("/api/apply/tenant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Submission failed");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Submission failed");
+      }
       const result = await res.json();
 
       const totalFiles = Object.values(stagedAttachments).flat().length;
@@ -199,7 +204,9 @@ export function TenantForm() {
 
       markSubmitted(TENANT_STORAGE_KEY, data.firstName, refNumber);
       setIsSubmitted(true);
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      setSubmitError(message);
       setIsSubmitting(false);
     }
   }, [data, stagedAttachments, refNumber]);
@@ -231,6 +238,7 @@ export function TenantForm() {
       )}
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}
+      submitError={submitError}
       storageKey={TENANT_STORAGE_KEY}
       title="Tenant Application"
     />

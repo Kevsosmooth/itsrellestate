@@ -108,6 +108,7 @@ export function LandlordForm() {
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [submittedName, setSubmittedName] = useState("");
 
   useEffect(() => {
@@ -136,13 +137,17 @@ export function LandlordForm() {
 
   const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
+    setSubmitError("");
     try {
       const res = await fetch("/api/apply/landlord", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Submission failed");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Submission failed");
+      }
       const result = await res.json();
 
       if (stagedFiles.length > 0 && result.uploadsFolderId) {
@@ -151,7 +156,9 @@ export function LandlordForm() {
 
       markSubmitted(LANDLORD_STORAGE_KEY, data.llFirstName);
       setIsSubmitted(true);
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      setSubmitError(message);
       setIsSubmitting(false);
     }
   }, [data, stagedFiles]);
@@ -177,6 +184,7 @@ export function LandlordForm() {
       )}
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}
+      submitError={submitError}
       storageKey={LANDLORD_STORAGE_KEY}
       title="Landlord Application"
     />

@@ -15,6 +15,7 @@ interface FormWizardProps {
   renderStep: (stepIndex: number) => React.ReactNode;
   onSubmit: () => void;
   isSubmitting?: boolean;
+  submitError?: string;
   storageKey: string;
   title: string;
   className?: string;
@@ -43,6 +44,7 @@ export function FormWizard({
   renderStep,
   onSubmit,
   isSubmitting = false,
+  submitError,
   storageKey,
   title,
   className,
@@ -282,6 +284,18 @@ export function FormWizard({
         <div role="alert" aria-live="assertive" className="rounded-lg bg-error/5 border border-error/20 p-3">
           <p className="text-sm text-error font-medium">
             Please fix {Object.keys(errors).length} error{Object.keys(errors).length > 1 ? "s" : ""} before continuing.
+          </p>
+        </div>
+      )}
+
+      {/* Submit error */}
+      {submitError && (
+        <div role="alert" aria-live="assertive" className="rounded-lg bg-error/5 border border-error/20 p-4">
+          <p className="text-sm font-medium text-error">
+            Submission failed: {submitError}
+          </p>
+          <p className="text-xs text-text-muted mt-1">
+            Please try again. If the problem continues, contact us for help.
           </p>
         </div>
       )}
