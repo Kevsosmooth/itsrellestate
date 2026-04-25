@@ -5,7 +5,7 @@ import {
   appendSheetRow,
   sendNotificationEmail,
 } from "@/lib/google";
-import { landlordSchema, maskSensitiveField, sanitizeForStorage } from "@/lib/validation";
+import { landlordSchema, sanitizeForStorage } from "@/lib/validation";
 
 export async function POST(request: Request) {
   try {
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       body.propZip,
       body.ownershipType,
       legalNameDisplay,
-      maskSensitiveField(body.taxId),
+      body.taxId,
       body.paymentPreference,
       bankDisplay,
       body.accountType,

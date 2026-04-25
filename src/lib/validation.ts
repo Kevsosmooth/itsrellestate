@@ -153,7 +153,6 @@ export function maskSensitiveField(value: string): string {
 
 export function sanitizeForStorage(data: Record<string, unknown>): Record<string, unknown> {
   const sensitiveKeys = [
-    "taxId",
     "bankAcct", "bankAcctConfirm",
     "bankRouting", "bankRoutingConfirm",
     "achAccount", "achRouting",
