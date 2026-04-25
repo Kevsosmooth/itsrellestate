@@ -94,8 +94,11 @@ let unitIdCounter = 2;
 async function uploadStagedFiles(
   files: StagedFile[],
   uploadsFolderId: string,
+  onProgress?: (current: number, total: number) => void,
 ): Promise<void> {
-  for (const staged of files) {
+  for (let i = 0; i < files.length; i++) {
+    onProgress?.(i + 1, files.length);
+    const staged = files[i];
     const formData = new FormData();
     formData.append("file", staged.file);
     formData.append("folderId", uploadsFolderId);
@@ -107,6 +110,7 @@ export function LandlordForm() {
   const [data, setData] = useState<LandlordFormData>(createEmptyLandlordForm);
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submittedName, setSubmittedName] = useState("");
@@ -151,7 +155,11 @@ export function LandlordForm() {
       const result = await res.json();
 
       if (stagedFiles.length > 0 && result.uploadsFolderId) {
-        await uploadStagedFiles(stagedFiles, result.uploadsFolderId);
+        await uploadStagedFiles(
+          stagedFiles,
+          result.uploadsFolderId,
+          (current, total) => setSubmitProgress(`Uploading ${current} of ${total} files...`),
+        );
       }
 
       markSubmitted(LANDLORD_STORAGE_KEY, data.llFirstName);
@@ -184,6 +192,7 @@ export function LandlordForm() {
       )}
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}
+      submitProgress={submitProgress}
       submitError={submitError}
       storageKey={LANDLORD_STORAGE_KEY}
       title="Landlord Application"

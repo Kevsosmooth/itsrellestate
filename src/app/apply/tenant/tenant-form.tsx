@@ -139,18 +139,24 @@ function buildPrefixedFilename(
 async function uploadAllStagedFiles(
   attachments: StagedAttachments,
   uploadsFolderId: string,
+  onProgress?: (current: number, total: number) => void,
 ): Promise<void> {
   const usedNames = new Set<string>();
   const entries = Object.entries(attachments) as [DocCategory, typeof attachments[DocCategory]][];
-  for (const [category, files] of entries) {
-    for (const staged of files) {
-      const prefixedName = buildPrefixedFilename(category, staged.fileName, usedNames);
-      const renamedFile = new File([staged.file], prefixedName, { type: staged.file.type });
-      const formData = new FormData();
-      formData.append("file", renamedFile);
-      formData.append("folderId", uploadsFolderId);
-      await fetch("/api/upload", { method: "POST", body: formData });
-    }
+  const allFiles = entries.flatMap(([category, files]) =>
+    files.map((staged) => ({ category, staged })),
+  );
+  const total = allFiles.length;
+
+  for (let i = 0; i < allFiles.length; i++) {
+    onProgress?.(i + 1, total);
+    const { category, staged } = allFiles[i];
+    const prefixedName = buildPrefixedFilename(category, staged.fileName, usedNames);
+    const renamedFile = new File([staged.file], prefixedName, { type: staged.file.type });
+    const formData = new FormData();
+    formData.append("file", renamedFile);
+    formData.append("folderId", uploadsFolderId);
+    await fetch("/api/upload", { method: "POST", body: formData });
   }
 }
 
@@ -158,6 +164,7 @@ export function TenantForm() {
   const [data, setData] = useState<TenantFormData>(createEmptyTenantForm);
   const [stagedAttachments, setStagedAttachments] = useState<StagedAttachments>(createEmptyStagedAttachments);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [refNumber, setRefNumber] = useState("");
@@ -199,7 +206,11 @@ export function TenantForm() {
 
       const totalFiles = Object.values(stagedAttachments).flat().length;
       if (totalFiles > 0 && result.uploadsFolderId) {
-        await uploadAllStagedFiles(stagedAttachments, result.uploadsFolderId);
+        await uploadAllStagedFiles(
+          stagedAttachments,
+          result.uploadsFolderId,
+          (current, total) => setSubmitProgress(`Uploading ${current} of ${total} files...`),
+        );
       }
 
       markSubmitted(TENANT_STORAGE_KEY, data.firstName, refNumber);
@@ -238,6 +249,7 @@ export function TenantForm() {
       )}
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}
+      submitProgress={submitProgress}
       submitError={submitError}
       storageKey={TENANT_STORAGE_KEY}
       title="Tenant Application"

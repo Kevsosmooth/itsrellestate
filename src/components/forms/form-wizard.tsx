@@ -15,6 +15,7 @@ interface FormWizardProps {
   renderStep: (stepIndex: number) => React.ReactNode;
   onSubmit: () => void;
   isSubmitting?: boolean;
+  submitProgress?: string;
   submitError?: string;
   storageKey: string;
   title: string;
@@ -44,6 +45,7 @@ export function FormWizard({
   renderStep,
   onSubmit,
   isSubmitting = false,
+  submitProgress,
   submitError,
   storageKey,
   title,
@@ -345,7 +347,7 @@ export function FormWizard({
             {isSubmitting ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Submitting...
+                {submitProgress || "Submitting..."}
               </span>
             ) : (
               "Submit Application"
