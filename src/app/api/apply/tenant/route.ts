@@ -3,8 +3,10 @@ import {
   createApplicantFolder,
   saveApplicationJSON,
   appendSheetRow,
+  appendStripeColumnsToRow,
   sendNotificationEmail,
 } from "@/lib/google";
+import { createApplicationInvoice } from "@/lib/stripe";
 import { tenantSchema, sanitizeForStorage } from "@/lib/validation";
 
 export async function POST(request: Request) {
@@ -65,7 +67,7 @@ export async function POST(request: Request) {
       ? body.incomeSources.join(", ")
       : "";
 
-    await appendSheetRow("Tenant Applications", [
+    const { rowNumber } = await appendSheetRow("Tenant Applications", [
       timestamp,
       "",
       "Unpaid",
@@ -119,6 +121,23 @@ export async function POST(request: Request) {
       `${body.signatureFirst} ${body.signatureLast}`,
       folderLink,
     ]);
+
+    try {
+      const { invoiceId, invoiceUrl } = await createApplicationInvoice({
+        email: body.email,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        formType: "tenant",
+      });
+      await appendStripeColumnsToRow(
+        "Tenant Applications",
+        rowNumber,
+        invoiceId,
+        invoiceUrl,
+      );
+    } catch (err) {
+      console.error("[stripe-invoice] failed to create invoice:", err);
+    }
 
     await sendNotificationEmail({
       formType: "tenant",
