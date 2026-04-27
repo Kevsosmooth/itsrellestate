@@ -283,16 +283,25 @@ export async function sendNotificationEmail(
 export async function appendSheetRow(
   sheetName: string,
   values: string[],
-): Promise<void> {
+): Promise<{ rowNumber: number }> {
   const sheets = getSheets();
   const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
   if (!spreadsheetId) throw new Error("GOOGLE_SPREADSHEET_ID not set");
 
-  await sheets.spreadsheets.values.append({
+  const res = await sheets.spreadsheets.values.append({
     spreadsheetId,
     range: `'${sheetName}'!A:A`,
     valueInputOption: "RAW",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [values] },
   });
+
+  const updatedRange = res.data.updates?.updatedRange ?? "";
+  const match = updatedRange.match(/!\D+(\d+):/);
+  const rowNumber = match ? parseInt(match[1], 10) : 0;
+  if (!rowNumber) {
+    throw new Error(`Failed to parse row number from append response: ${updatedRange}`);
+  }
+
+  return { rowNumber };
 }
