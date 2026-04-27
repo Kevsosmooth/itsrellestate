@@ -8,14 +8,12 @@ import Link from "next/link";
 interface FormSuccessProps {
   type: "tenant" | "landlord";
   firstName: string;
-  referenceNumber?: string;
   className?: string;
 }
 
 export function FormSuccess({
   type,
   firstName,
-  referenceNumber,
   className,
 }: FormSuccessProps) {
   return (
@@ -50,12 +48,12 @@ export function FormSuccess({
             : `Thank you, ${firstName}. Your property listing has been received and will be reviewed within 24 hours.`}
         </p>
 
-        {type === "tenant" && referenceNumber && (
-          <div className="rounded-lg bg-surface px-4 py-3">
-            <p className="text-sm text-text-secondary">
-              Your reference number is{" "}
-              <span className="font-mono font-semibold text-primary">{referenceNumber}</span>.
-              Include this with your $20 processing fee payment.
+        {type === "tenant" && (
+          <div className="rounded-lg bg-primary/5 px-4 py-3 text-left">
+            <p className="text-sm font-semibold text-text-primary mb-1">Check your email</p>
+            <p className="text-sm text-text-secondary leading-relaxed">
+              We have sent a $20 invoice from Stripe to complete your application. The link is
+              valid for 30 days. Please check your spam folder if you do not see it.
             </p>
           </div>
         )}
