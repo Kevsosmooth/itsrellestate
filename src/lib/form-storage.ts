@@ -47,13 +47,12 @@ export function hasSavedState(key: string): boolean {
 
 interface SubmittedState {
   firstName: string;
-  referenceNumber?: string;
   submittedAt: number;
 }
 
-export function markSubmitted(key: string, firstName: string, referenceNumber?: string): void {
+export function markSubmitted(key: string, firstName: string): void {
   try {
-    const state: SubmittedState = { firstName, referenceNumber, submittedAt: Date.now() };
+    const state: SubmittedState = { firstName, submittedAt: Date.now() };
     localStorage.setItem(`${key}-submitted`, JSON.stringify(state));
   } catch {
     // ignore
