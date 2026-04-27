@@ -167,7 +167,6 @@ export function TenantForm() {
   const [submitProgress, setSubmitProgress] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [refNumber, setRefNumber] = useState("");
   const [submittedName, setSubmittedName] = useState("");
 
   const steps = buildSteps(stagedAttachments);
@@ -176,7 +175,6 @@ export function TenantForm() {
     const prev = getSubmitted(TENANT_STORAGE_KEY);
     if (prev) {
       setSubmittedName(prev.firstName);
-      setRefNumber(prev.referenceNumber ?? "");
       setIsSubmitted(true);
     }
   }, []);
@@ -213,21 +211,20 @@ export function TenantForm() {
         );
       }
 
-      markSubmitted(TENANT_STORAGE_KEY, data.firstName, refNumber);
+      markSubmitted(TENANT_STORAGE_KEY, data.firstName);
       setIsSubmitted(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       setSubmitError(message);
       setIsSubmitting(false);
     }
-  }, [data, stagedAttachments, refNumber]);
+  }, [data, stagedAttachments]);
 
   if (isSubmitted) {
     return (
       <FormSuccess
         type="tenant"
         firstName={submittedName || data.firstName}
-        referenceNumber={refNumber}
       />
     );
   }
@@ -242,7 +239,6 @@ export function TenantForm() {
         <TenantStep
           step={stepIndex}
           data={data}
-          onRefNumber={setRefNumber}
           stagedAttachments={stagedAttachments}
           setStagedAttachments={setStagedAttachments}
         />
@@ -260,13 +256,11 @@ export function TenantForm() {
 function TenantStep({
   step,
   data,
-  onRefNumber,
   stagedAttachments,
   setStagedAttachments,
 }: {
   step: number;
   data: TenantFormData;
-  onRefNumber?: (ref: string) => void;
   stagedAttachments: StagedAttachments;
   setStagedAttachments: React.Dispatch<React.SetStateAction<StagedAttachments>>;
 }) {
@@ -285,7 +279,7 @@ function TenantStep({
         setStagedAttachments={setStagedAttachments}
       />
     );
-    case 5: return <Step5Payment data={data} onChange={onChange} errors={errors} onRefNumber={onRefNumber} />;
+    case 5: return <Step5Payment data={data} onChange={onChange} errors={errors} />;
     case 6: return <Step6Auth data={data} onChange={onChange} errors={errors} />;
     default: return null;
   }
@@ -958,19 +952,13 @@ function StepDocuments({
   );
 }
 
-function Step5Payment({
-  data,
-  onChange,
-  onRefNumber,
-}: StepProps & { onRefNumber?: (ref: string) => void }) {
+function Step5Payment({ data, onChange }: StepProps) {
   return (
     <PaymentStep
-      applicantName={`${data.firstName} ${data.lastName}`}
       confirmed={data.paymentConfirmed}
       onConfirmChange={(v) => {
         onChange("paymentConfirmed", v);
       }}
-      onRefNumber={onRefNumber}
     />
   );
 }
