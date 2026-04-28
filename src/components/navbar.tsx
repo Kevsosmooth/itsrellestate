@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 
 const NAV_LINKS = [
   { label: "About", href: "/#about" },
@@ -65,7 +66,7 @@ export function Navbar() {
           }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
         >
-          <a
+          <Link
             href="/"
             className="flex items-center shrink-0"
           >
@@ -85,7 +86,7 @@ export function Navbar() {
                 priority
               />
             </motion.div>
-          </a>
+          </Link>
 
           <div className="hidden md:flex items-center gap-8">
             {NAV_LINKS.map((link) => (
@@ -97,12 +98,12 @@ export function Navbar() {
                 {link.label}
               </a>
             ))}
-            <a
+            <Link
               href="/#apply"
               className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary min-h-[44px]"
             >
               Get Started
-            </a>
+            </Link>
           </div>
 
           <button
@@ -184,13 +185,13 @@ export function Navbar() {
               </nav>
 
               <div className="mt-auto px-6 py-6 border-t border-border">
-                <a
+                <Link
                   href="/#apply"
                   onClick={() => setMobileOpen(false)}
                   className="flex items-center justify-center w-full min-h-[44px] rounded-xl bg-primary px-5 py-3 text-base font-semibold text-primary-foreground transition-all duration-200 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   Get Started
-                </a>
+                </Link>
               </div>
             </motion.div>
           </>

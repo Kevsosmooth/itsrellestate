@@ -10,6 +10,12 @@ export interface StagedFile {
   fileName: string;
   mimeType: string;
   sizeInBytes: number;
+  assignedTo?: string;
+}
+
+export interface PersonPickerOption {
+  value: string;
+  label: string;
 }
 
 interface FileUploadProps {
@@ -18,6 +24,11 @@ interface FileUploadProps {
   stagedFiles: StagedFile[];
   onFilesStaged: (files: StagedFile[]) => void;
   onFileRemoved: (index: number) => void;
+  onAssignedToChange?: (index: number, value: string) => void;
+  personPicker?: {
+    options: PersonPickerOption[];
+    placeholder?: string;
+  };
   accept?: string;
   maxSize?: number;
   maxFiles?: number;
@@ -53,6 +64,8 @@ export function FileUpload({
   stagedFiles,
   onFilesStaged,
   onFileRemoved,
+  onAssignedToChange,
+  personPicker,
   accept = DEFAULT_ACCEPT,
   maxSize = DEFAULT_MAX_SIZE,
   maxFiles,
@@ -192,45 +205,97 @@ export function FileUpload({
         <p className="text-xs text-error mt-2">{sizeError}</p>
       )}
 
-      {stagedFiles.map((file, index) => (
-        <div
-          key={file.id}
-          className="flex items-center gap-2 px-3 py-2.5 bg-surface/50 rounded-md mt-2 border-l-2 border-primary min-w-0"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={cn("shrink-0", fileIconColor(file.fileName))}
+      {stagedFiles.map((file, index) => {
+        const needsAssignment = !!personPicker && !file.assignedTo;
+        return (
+          <div
+            key={file.id}
+            className={cn(
+              "flex flex-col gap-2 px-3 py-2.5 bg-surface/50 rounded-md mt-2 min-w-0 overflow-hidden",
+              "border-l-2",
+              needsAssignment ? "border-error" : "border-primary",
+            )}
           >
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
+            <div className="flex items-center gap-2 min-w-0">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={cn("shrink-0", fileIconColor(file.fileName))}
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
 
-          <span className="text-sm text-text-primary min-w-0 flex-1 truncate">
-            {file.fileName}
-          </span>
-          <span className="text-xs text-text-muted whitespace-nowrap shrink-0">
-            {formatFileSize(file.sizeInBytes)}
-          </span>
-          <button
-            type="button"
-            aria-label={`Remove ${file.fileName}`}
-            className="shrink-0 p-1.5 rounded text-error bg-error/10 border border-error/20 cursor-pointer transition-colors hover:bg-error/20 min-h-[28px] min-w-[28px] flex items-center justify-center"
-            onClick={(e) => {
-              e.stopPropagation();
-              onFileRemoved(index);
-            }}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      ))}
+              <span className="text-sm text-text-primary min-w-0 flex-1 truncate">
+                {file.fileName}
+              </span>
+              <span className="text-xs text-text-muted whitespace-nowrap shrink-0">
+                {formatFileSize(file.sizeInBytes)}
+              </span>
+              <button
+                type="button"
+                aria-label={`Remove ${file.fileName}`}
+                className="shrink-0 p-1.5 rounded text-error bg-error/10 border border-error/20 cursor-pointer transition-colors hover:bg-error/20 min-h-[28px] min-w-[28px] flex items-center justify-center"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFileRemoved(index);
+                }}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {personPicker && onAssignedToChange && (
+              <div className="block w-full min-w-0">
+                <label className="block text-xs font-medium text-text-secondary mb-1">
+                  This belongs to:
+                </label>
+                <div className="relative w-full min-w-0">
+                  <select
+                    value={file.assignedTo ?? ""}
+                    onChange={(e) => onAssignedToChange(index, e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className={cn(
+                      "block w-full min-w-0 max-w-full min-h-[40px] px-2 pr-8 rounded-md text-sm bg-light border appearance-none truncate",
+                      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+                      needsAssignment ? "border-error" : "border-border",
+                    )}
+                  >
+                    <option value="" disabled>
+                      {personPicker.placeholder ?? "Select a person"}
+                    </option>
+                    {personPicker.options.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <svg
+                    aria-hidden="true"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-text-muted"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

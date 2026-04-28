@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import { FormWizard, useWizardContext } from "@/components/forms/form-wizard";
 import { FormField } from "@/components/forms/form-field";
 import { FormSection } from "@/components/forms/form-section";
@@ -15,7 +15,13 @@ import { FileUpload } from "@/components/forms/file-upload";
 import type { TenantFormData, Occupant, FormStepDef, StagedAttachments } from "@/lib/form-types";
 import { createEmptyTenantForm, createEmptyStagedAttachments } from "@/lib/form-types";
 import { formatPhone, formatZip, formatDOB } from "@/lib/form-formatters";
-import { TENANT_STORAGE_KEY, markSubmitted, getSubmitted } from "@/lib/form-storage";
+import { sanitizeVoucherCaseNumber } from "@/lib/form-validators";
+import { isDev, devTenantData, makeFakeStagedFile } from "@/lib/dev-autofill";
+import {
+  TENANT_STORAGE_KEY,
+  clearFormState, getOrCreatePendingSubmission, setPendingUploadsFolderId,
+  clearPendingSubmission,
+} from "@/lib/form-storage";
 import {
   BOROUGH_OPTIONS, US_STATES, ASSIST_PROGRAM_OPTIONS, VOUCHER_BEDROOM_OPTIONS,
   CREDIT_SCORE_OPTIONS, OCCUPANT_COUNT_OPTIONS, PAY_TYPE_OPTIONS,
@@ -100,15 +106,54 @@ function getVisibleDocCategories(data: TenantFormData): DocCategory[] {
   return visible;
 }
 
+const PRIMARY_APPLICANT_KEY = "__primary__";
+const PER_PERSON_DOC_CATEGORIES: DocCategory[] = ["photoId", "socialSecurityCard"];
+
+function getAdultOccupants(data: TenantFormData): { key: string; label: string }[] {
+  return data.occupants
+    .filter((o) => o.over18 === "yes" && o.name.trim())
+    .map((o) => ({ key: o.name.trim(), label: o.name.trim() }));
+}
+
+function getPersonOptions(data: TenantFormData): { value: string; label: string }[] {
+  const primaryName = `${data.firstName} ${data.lastName}`.trim() || "Primary applicant";
+  const primary = { value: PRIMARY_APPLICANT_KEY, label: `${primaryName} (you)` };
+  const adults = getAdultOccupants(data).map((o) => ({ value: o.key, label: o.label }));
+  return [primary, ...adults];
+}
+
 function validateTenantStep5Docs(
   data: TenantFormData,
   stagedAttachments: StagedAttachments,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   const required = getRequiredDocCategories(data);
+  const adults = getAdultOccupants(data);
+  const hasAdults = adults.length > 0;
+
   for (const cat of required) {
-    if (stagedAttachments[cat].length === 0) {
+    const files = stagedAttachments[cat];
+    if (files.length === 0) {
       errors[`doc:${cat}`] = `${DOC_CATEGORY_CONFIGS[cat].label} is required`;
+      continue;
+    }
+
+    if (hasAdults && PER_PERSON_DOC_CATEGORIES.includes(cat)) {
+      const unassigned = files.find((f) => !f.assignedTo);
+      if (unassigned) {
+        errors[`doc:${cat}`] = `Choose who each ${DOC_CATEGORY_CONFIGS[cat].label.toLowerCase()} belongs to`;
+        continue;
+      }
+      const allKeys = [PRIMARY_APPLICANT_KEY, ...adults.map((a) => a.key)];
+      const missing = allKeys.filter(
+        (key) => !files.some((f) => f.assignedTo === key),
+      );
+      if (missing.length > 0) {
+        const missingLabels = missing.map((k) =>
+          k === PRIMARY_APPLICANT_KEY ? "you" : k,
+        );
+        errors[`doc:${cat}`] = `${DOC_CATEGORY_CONFIGS[cat].label} required for: ${missingLabels.join(", ")}`;
+      }
     }
   }
   return errors;
@@ -139,6 +184,7 @@ function buildPrefixedFilename(
 async function uploadAllStagedFiles(
   attachments: StagedAttachments,
   uploadsFolderId: string,
+  occupantFolderIds: Record<string, string>,
   onProgress?: (current: number, total: number) => void,
 ): Promise<void> {
   const usedNames = new Set<string>();
@@ -153,31 +199,48 @@ async function uploadAllStagedFiles(
     const { category, staged } = allFiles[i];
     const prefixedName = buildPrefixedFilename(category, staged.fileName, usedNames);
     const renamedFile = new File([staged.file], prefixedName, { type: staged.file.type });
+
+    let targetFolderId = uploadsFolderId;
+    if (
+      PER_PERSON_DOC_CATEGORIES.includes(category) &&
+      staged.assignedTo &&
+      staged.assignedTo !== PRIMARY_APPLICANT_KEY &&
+      occupantFolderIds[staged.assignedTo]
+    ) {
+      targetFolderId = occupantFolderIds[staged.assignedTo];
+    }
+
     const formData = new FormData();
     formData.append("file", renamedFile);
-    formData.append("folderId", uploadsFolderId);
-    await fetch("/api/upload", { method: "POST", body: formData });
+    formData.append("folderId", targetFolderId);
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || `Upload failed for ${staged.fileName}`);
+    }
   }
 }
+
+type SubmissionPhase =
+  | "idle"
+  | "submitting-app"
+  | "uploading-files"
+  | "upload-failed"
+  | "complete";
 
 export function TenantForm() {
   const [data, setData] = useState<TenantFormData>(createEmptyTenantForm);
   const [stagedAttachments, setStagedAttachments] = useState<StagedAttachments>(createEmptyStagedAttachments);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phase, setPhase] = useState<SubmissionPhase>("idle");
   const [submitProgress, setSubmitProgress] = useState("");
-  const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [submittedName, setSubmittedName] = useState("");
+  const [uploadsFolderId, setUploadsFolderId] = useState<string | null>(null);
+  const [folderId, setFolderId] = useState<string | null>(null);
+  const [occupantFolderIds, setOccupantFolderIds] = useState<Record<string, string>>({});
+
+  const submitLockRef = useRef(false);
 
   const steps = buildSteps(stagedAttachments);
-
-  useEffect(() => {
-    const prev = getSubmitted(TENANT_STORAGE_KEY);
-    if (prev) {
-      setSubmittedName(prev.firstName);
-      setIsSubmitted(true);
-    }
-  }, []);
 
   const handleChange = useCallback((field: string, value: unknown) => {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -187,44 +250,98 @@ export function TenantForm() {
     setData(restored as unknown as TenantFormData);
   }, []);
 
+  const runUploads = useCallback(async (folderId: string, occFolderIds: Record<string, string>) => {
+    const totalFiles = Object.values(stagedAttachments).flat().length;
+    if (totalFiles === 0) return;
+    setPhase("uploading-files");
+    await uploadAllStagedFiles(
+      stagedAttachments,
+      folderId,
+      occFolderIds,
+      (current, total) => setSubmitProgress(`Uploading ${current} of ${total} files...`),
+    );
+  }, [stagedAttachments]);
+
   const handleSubmit = useCallback(async () => {
-    setIsSubmitting(true);
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setSubmitError("");
+
+    const pending = getOrCreatePendingSubmission(TENANT_STORAGE_KEY);
+
     try {
-      const res = await fetch("/api/apply/tenant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error || "Submission failed");
-      }
-      const result = await res.json();
+      let currentFolderId = folderId;
+      let currentUploadsFolderId = uploadsFolderId;
+      let currentOccupantFolderIds = occupantFolderIds;
 
-      const totalFiles = Object.values(stagedAttachments).flat().length;
-      if (totalFiles > 0 && result.uploadsFolderId) {
-        await uploadAllStagedFiles(
-          stagedAttachments,
-          result.uploadsFolderId,
-          (current, total) => setSubmitProgress(`Uploading ${current} of ${total} files...`),
-        );
+      if (!currentUploadsFolderId) {
+        setPhase("submitting-app");
+        setSubmitProgress("Submitting application...");
+
+        const res = await fetch("/api/apply/tenant", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": pending.idempotencyKey,
+          },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error || "Submission failed");
+        }
+        const result = await res.json();
+        currentFolderId = result.folderId as string;
+        currentUploadsFolderId = result.uploadsFolderId as string;
+        currentOccupantFolderIds = (result.occupantFolderIds as Record<string, string>) ?? {};
+        if (currentFolderId) setFolderId(currentFolderId);
+        if (currentUploadsFolderId) {
+          setUploadsFolderId(currentUploadsFolderId);
+          setPendingUploadsFolderId(TENANT_STORAGE_KEY, currentUploadsFolderId);
+        }
+        setOccupantFolderIds(currentOccupantFolderIds);
       }
 
-      markSubmitted(TENANT_STORAGE_KEY, data.firstName);
-      setIsSubmitted(true);
+      if (currentUploadsFolderId) {
+        await runUploads(currentUploadsFolderId, currentOccupantFolderIds);
+      }
+
+      if (currentFolderId && currentUploadsFolderId) {
+        setSubmitProgress("Finishing up...");
+        try {
+          await fetch("/api/apply/tenant/finalize", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": pending.idempotencyKey,
+            },
+            body: JSON.stringify({
+              folderId: currentFolderId,
+              uploadsFolderId: currentUploadsFolderId,
+            }),
+          });
+        } catch (err) {
+          console.error("Finalize call failed:", err);
+        }
+      }
+
+      clearFormState(TENANT_STORAGE_KEY);
+      clearPendingSubmission(TENANT_STORAGE_KEY);
+      setPhase("complete");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       setSubmitError(message);
-      setIsSubmitting(false);
+      setPhase(uploadsFolderId ? "upload-failed" : "idle");
+    } finally {
+      submitLockRef.current = false;
     }
-  }, [data, stagedAttachments]);
+  }, [data, folderId, occupantFolderIds, runUploads, uploadsFolderId]);
 
-  if (isSubmitted) {
+  if (phase === "complete") {
     return (
       <FormSuccess
         type="tenant"
-        firstName={submittedName || data.firstName}
+        firstName={data.firstName}
       />
     );
   }
@@ -244,11 +361,38 @@ export function TenantForm() {
         />
       )}
       onSubmit={handleSubmit}
-      isSubmitting={isSubmitting}
+      isSubmitting={phase === "submitting-app" || phase === "uploading-files"}
+      submitLabel={phase === "upload-failed" ? "Retry Upload" : undefined}
       submitProgress={submitProgress}
       submitError={submitError}
       storageKey={TENANT_STORAGE_KEY}
       title="Tenant Application"
+      devAutofill={isDev ? {
+        fill: () => devTenantData() as unknown as Record<string, unknown>,
+        jumpToStep: 4,
+        onAfterFill: (filled) => {
+          const filledTenant = filled as unknown as TenantFormData;
+          const required = getRequiredDocCategories(filledTenant);
+          const adults = getAdultOccupants(filledTenant);
+          const owners = adults.length > 0
+            ? [PRIMARY_APPLICANT_KEY, ...adults.map((a) => a.key)]
+            : [undefined];
+
+          const next = createEmptyStagedAttachments();
+          for (const cat of required) {
+            const config = DOC_CATEGORY_CONFIGS[cat];
+            const isPerPerson = adults.length > 0 && PER_PERSON_DOC_CATEGORIES.includes(cat);
+            if (isPerPerson) {
+              for (const owner of owners) {
+                next[cat].push(makeFakeStagedFile(`${config.label}-${owner ?? "primary"}`, owner));
+              }
+            } else {
+              next[cat].push(makeFakeStagedFile(config.label));
+            }
+          }
+          setStagedAttachments(next);
+        },
+      } : undefined}
     />
   );
 }
@@ -500,7 +644,9 @@ function Step2Assistance({ data, onChange, errors }: StepProps) {
               <FormField name="voucherNumber" label="Voucher/Case Number" required error={errors.voucherNumber}>
                 <FormInput
                   value={data.voucherNumber}
-                  onChange={(e) => onChange("voucherNumber", e.target.value)}
+                  onChange={(e) => onChange("voucherNumber", sanitizeVoucherCaseNumber(e.target.value))}
+                  maxLength={20}
+                  placeholder="e.g. 14089043"
                 />
               </FormField>
               <FormField name="voucherExpDate" label="Voucher Expiration" required error={errors.voucherExpDate}>
@@ -508,6 +654,7 @@ function Step2Assistance({ data, onChange, errors }: StepProps) {
                   type="date"
                   value={data.voucherExpDate}
                   onChange={(e) => onChange("voucherExpDate", e.target.value)}
+                  min={(() => { const t = new Date(); t.setDate(t.getDate() + 1); return t.toISOString().split("T")[0]; })()}
                 />
               </FormField>
             </div>
@@ -896,6 +1043,9 @@ function StepDocuments({
   const visibleCategories = getVisibleDocCategories(data);
   const requiredCategories = getRequiredDocCategories(data);
   const requiredSet = new Set(requiredCategories);
+  const adults = getAdultOccupants(data);
+  const personOptions = getPersonOptions(data);
+  const showPersonPicker = adults.length > 0;
 
   const requiredLabels = requiredCategories.map((cat) => DOC_CATEGORY_CONFIGS[cat].label);
 
@@ -914,6 +1064,12 @@ function StepDocuments({
           <p className="text-xs text-text-muted mt-3">
             PDF, DOC, JPG, or PNG accepted. Max 25MB per file. Documents are not uploaded until you submit.
           </p>
+          {showPersonPicker && (
+            <p className="text-xs text-text-secondary mt-3 leading-relaxed">
+              <span className="font-semibold">Photo ID</span> and <span className="font-semibold">Social Security Card</span>{" "}
+              are required for every adult in the household. After uploading each file, choose whose document it is.
+            </p>
+          )}
         </div>
       </FormSection>
 
@@ -922,6 +1078,7 @@ function StepDocuments({
           const config = DOC_CATEGORY_CONFIGS[cat];
           const isRequired = requiredSet.has(cat);
           const hasError = !!errors[`doc:${cat}`];
+          const isPerPerson = showPersonPicker && PER_PERSON_DOC_CATEGORIES.includes(cat);
 
           return (
             <FileUpload
@@ -932,6 +1089,15 @@ function StepDocuments({
               error={hasError}
               maxFiles={config.maxFiles}
               stagedFiles={stagedAttachments[cat]}
+              personPicker={isPerPerson ? { options: personOptions } : undefined}
+              onAssignedToChange={(index, value) =>
+                setStagedAttachments((prev) => ({
+                  ...prev,
+                  [cat]: prev[cat].map((file, i) =>
+                    i === index ? { ...file, assignedTo: value } : file,
+                  ),
+                }))
+              }
               onFilesStaged={(files) =>
                 setStagedAttachments((prev) => ({
                   ...prev,
@@ -947,6 +1113,12 @@ function StepDocuments({
             />
           );
         })}
+        {showPersonPicker && errors[`doc:photoId`] && (
+          <p className="text-xs text-error mt-1">{errors[`doc:photoId`]}</p>
+        )}
+        {showPersonPicker && errors[`doc:socialSecurityCard`] && (
+          <p className="text-xs text-error mt-1">{errors[`doc:socialSecurityCard`]}</p>
+        )}
       </FormSection>
     </div>
   );

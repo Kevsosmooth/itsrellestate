@@ -50,18 +50,107 @@ export function getDrive() {
   return google.drive({ version: "v3", auth: getAuth() });
 }
 
-export async function createApplicantFolder(
-  parentFolderId: string,
-  applicantName: string,
-  formType: "tenant" | "landlord",
-  occupantNames: string[] = [],
-): Promise<{
+interface ApplicantFolderResult {
   folderId: string;
   folderLink: string;
   uploadsFolderId: string;
   occupantFolderIds: Record<string, string>;
-}> {
+  alreadyExisted: boolean;
+}
+
+async function findFolderByIdempotencyKey(
+  parentFolderId: string,
+  idempotencyKey: string,
+): Promise<{ folderId: string; folderLink: string; properties: Record<string, string> } | null> {
   const drive = getDrive();
+  const res = await drive.files.list({
+    q: [
+      `'${parentFolderId}' in parents`,
+      `mimeType = 'application/vnd.google-apps.folder'`,
+      `appProperties has { key='idempotencyKey' and value='${idempotencyKey}' }`,
+      `trashed = false`,
+    ].join(" and "),
+    fields: "files(id,webViewLink,appProperties,createdTime)",
+    orderBy: "createdTime",
+    pageSize: 5,
+  });
+  const files = res.data.files ?? [];
+  if (files.length === 0) return null;
+  const winner = files[0];
+  return {
+    folderId: winner.id!,
+    folderLink: winner.webViewLink!,
+    properties: (winner.appProperties as Record<string, string>) ?? {},
+  };
+}
+
+async function findChildFolder(parentId: string, name: string): Promise<string | null> {
+  const drive = getDrive();
+  const res = await drive.files.list({
+    q: [
+      `'${parentId}' in parents`,
+      `mimeType = 'application/vnd.google-apps.folder'`,
+      `name = '${name.replace(/'/g, "\\'")}'`,
+      `trashed = false`,
+    ].join(" and "),
+    fields: "files(id)",
+    pageSize: 1,
+  });
+  return res.data.files?.[0]?.id ?? null;
+}
+
+export async function getOrCreateApplicantFolder(
+  parentFolderId: string,
+  applicantName: string,
+  formType: "tenant" | "landlord",
+  idempotencyKey: string,
+  occupantNames: string[] = [],
+): Promise<ApplicantFolderResult> {
+  const drive = getDrive();
+
+  const existing = await findFolderByIdempotencyKey(parentFolderId, idempotencyKey);
+  if (existing) {
+    let uploadsFolderId = await findChildFolder(existing.folderId, "uploads");
+    if (!uploadsFolderId) {
+      const uploadsFolder = await drive.files.create({
+        requestBody: {
+          name: "uploads",
+          mimeType: "application/vnd.google-apps.folder",
+          parents: [existing.folderId],
+        },
+        fields: "id",
+      });
+      uploadsFolderId = uploadsFolder.data.id!;
+    }
+
+    const occupantFolderIds: Record<string, string> = {};
+    for (const name of occupantNames) {
+      const safeOccName = name.replace(/[^a-zA-Z0-9 -]/g, "").replace(/\s+/g, "-");
+      const existingOcc = await findChildFolder(uploadsFolderId, safeOccName);
+      if (existingOcc) {
+        occupantFolderIds[name] = existingOcc;
+      } else {
+        const occFolder = await drive.files.create({
+          requestBody: {
+            name: safeOccName,
+            mimeType: "application/vnd.google-apps.folder",
+            parents: [uploadsFolderId],
+          },
+          fields: "id",
+        });
+        occupantFolderIds[name] = occFolder.data.id!;
+      }
+    }
+
+    return {
+      folderId: existing.folderId,
+      folderLink: existing.folderLink,
+      uploadsFolderId,
+      occupantFolderIds,
+      alreadyExisted: true,
+    };
+  }
+
   const timestamp = new Date().toISOString().slice(0, 10);
   const safeName = applicantName.replace(/[^a-zA-Z0-9 -]/g, "").replace(/\s+/g, "-");
   const folderName = `${timestamp}_${safeName}_${formType}`;
@@ -71,9 +160,22 @@ export async function createApplicantFolder(
       name: folderName,
       mimeType: "application/vnd.google-apps.folder",
       parents: [parentFolderId],
+      appProperties: { idempotencyKey },
     },
     fields: "id,webViewLink",
   });
+
+  const recheck = await findFolderByIdempotencyKey(parentFolderId, idempotencyKey);
+  if (recheck && recheck.folderId !== folder.data.id) {
+    await drive.files.delete({ fileId: folder.data.id! });
+    return getOrCreateApplicantFolder(
+      parentFolderId,
+      applicantName,
+      formType,
+      idempotencyKey,
+      occupantNames,
+    );
+  }
 
   const uploadsFolder = await drive.files.create({
     requestBody: {
@@ -103,7 +205,50 @@ export async function createApplicantFolder(
     folderLink: folder.data.webViewLink!,
     uploadsFolderId: uploadsFolder.data.id!,
     occupantFolderIds,
+    alreadyExisted: false,
   };
+}
+
+export async function readApplicationJSON(folderId: string): Promise<Record<string, unknown> | null> {
+  const drive = getDrive();
+  const list = await drive.files.list({
+    q: [
+      `'${folderId}' in parents`,
+      `name = 'application-data.json'`,
+      `trashed = false`,
+    ].join(" and "),
+    fields: "files(id)",
+    pageSize: 1,
+  });
+  const fileId = list.data.files?.[0]?.id;
+  if (!fileId) return null;
+
+  const res = await drive.files.get(
+    { fileId, alt: "media" },
+    { responseType: "text" },
+  );
+  try {
+    return JSON.parse(res.data as unknown as string) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+export async function getFolderProperties(folderId: string): Promise<Record<string, string>> {
+  const drive = getDrive();
+  const res = await drive.files.get({ fileId: folderId, fields: "appProperties" });
+  return (res.data.appProperties as Record<string, string>) ?? {};
+}
+
+export async function patchFolderProperties(
+  folderId: string,
+  properties: Record<string, string>,
+): Promise<void> {
+  const drive = getDrive();
+  await drive.files.update({
+    fileId: folderId,
+    requestBody: { appProperties: properties },
+  });
 }
 
 export async function saveApplicationJSON(
@@ -112,6 +257,25 @@ export async function saveApplicationJSON(
 ): Promise<void> {
   const drive = getDrive();
   const content = JSON.stringify(data, null, 2);
+
+  const existing = await drive.files.list({
+    q: [
+      `'${folderId}' in parents`,
+      `name = 'application-data.json'`,
+      `trashed = false`,
+    ].join(" and "),
+    fields: "files(id)",
+    pageSize: 1,
+  });
+
+  const existingId = existing.data.files?.[0]?.id;
+  if (existingId) {
+    await drive.files.update({
+      fileId: existingId,
+      media: { mimeType: "application/json", body: content },
+    });
+    return;
+  }
 
   await drive.files.create({
     requestBody: {

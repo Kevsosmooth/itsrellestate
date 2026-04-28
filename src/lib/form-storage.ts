@@ -79,3 +79,57 @@ export function formatRelativeTime(timestamp: number): string {
   const days = Math.floor(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
+
+interface PendingSubmission {
+  idempotencyKey: string;
+  uploadsFolderId?: string;
+}
+
+function pendingKey(formKey: string): string {
+  return `${formKey}-pending`;
+}
+
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function getOrCreatePendingSubmission(formKey: string): PendingSubmission {
+  try {
+    const raw = localStorage.getItem(pendingKey(formKey));
+    if (raw) {
+      const parsed = JSON.parse(raw) as PendingSubmission;
+      if (parsed.idempotencyKey) return parsed;
+    }
+  } catch {
+    // ignore
+  }
+  const fresh: PendingSubmission = { idempotencyKey: generateIdempotencyKey() };
+  try {
+    localStorage.setItem(pendingKey(formKey), JSON.stringify(fresh));
+  } catch {
+    // ignore
+  }
+  return fresh;
+}
+
+export function setPendingUploadsFolderId(formKey: string, uploadsFolderId: string): void {
+  try {
+    const raw = localStorage.getItem(pendingKey(formKey));
+    const current = raw ? (JSON.parse(raw) as PendingSubmission) : { idempotencyKey: generateIdempotencyKey() };
+    const next: PendingSubmission = { ...current, uploadsFolderId };
+    localStorage.setItem(pendingKey(formKey), JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+export function clearPendingSubmission(formKey: string): void {
+  try {
+    localStorage.removeItem(pendingKey(formKey));
+  } catch {
+    // ignore
+  }
+}

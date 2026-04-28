@@ -75,38 +75,31 @@ export function DotPattern({
 }: DotPatternProps) {
   const id = useId()
   const containerRef = useRef<SVGSVGElement>(null)
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
+  const [dots, setDots] = useState<{ x: number; y: number; delay: number; duration: number }[]>([])
 
   useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const { width, height } = containerRef.current.getBoundingClientRect()
-        setDimensions({ width, height })
-      }
+    const updateDots = () => {
+      if (!containerRef.current) return
+      const { width: w, height: h } = containerRef.current.getBoundingClientRect()
+      const cols = Math.ceil(w / width)
+      const rows = Math.ceil(h / height)
+      const next = Array.from({ length: cols * rows }, (_, i) => {
+        const col = i % cols
+        const row = Math.floor(i / cols)
+        return {
+          x: col * width + cx + x,
+          y: row * height + cy + y,
+          delay: Math.random() * 5,
+          duration: Math.random() * 3 + 2,
+        }
+      })
+      setDots(next)
     }
 
-    updateDimensions()
-    window.addEventListener("resize", updateDimensions)
-    return () => window.removeEventListener("resize", updateDimensions)
-  }, [])
-
-  const dots = Array.from(
-    {
-      length:
-        Math.ceil(dimensions.width / width) *
-        Math.ceil(dimensions.height / height),
-    },
-    (_, i) => {
-      const col = i % Math.ceil(dimensions.width / width)
-      const row = Math.floor(i / Math.ceil(dimensions.width / width))
-      return {
-        x: col * width + cx + x,
-        y: row * height + cy + y,
-        delay: Math.random() * 5,
-        duration: Math.random() * 3 + 2,
-      }
-    }
-  )
+    updateDots()
+    window.addEventListener("resize", updateDots)
+    return () => window.removeEventListener("resize", updateDots)
+  }, [width, height, cx, cy, x, y])
 
   return (
     <svg

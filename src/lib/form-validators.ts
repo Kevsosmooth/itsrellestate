@@ -99,3 +99,41 @@ export function signatureMatch(typed: string, original: string): string | null {
   }
   return null;
 }
+
+export function voucherExpiration(value: string): string | null {
+  if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Enter a valid expiration date";
+
+  const [yearStr, monthStr, dayStr] = value.split("-");
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const day = parseInt(dayStr, 10);
+
+  const exp = new Date(year, month - 1, day);
+  if (exp.getFullYear() !== year || exp.getMonth() !== month - 1 || exp.getDate() !== day) {
+    return "Enter a valid expiration date";
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (exp.getTime() <= today.getTime()) return "Voucher expiration must be in the future";
+
+  const maxFuture = new Date(today);
+  maxFuture.setMonth(maxFuture.getMonth() + 18);
+  if (exp.getTime() > maxFuture.getTime()) {
+    return "Expiration is too far in the future, double-check the date";
+  }
+
+  return null;
+}
+
+export function voucherCaseNumber(value: string): string | null {
+  if (!value) return null;
+  if (value.length > 20) return "Number is too long";
+  if (!/^[a-zA-Z0-9-]+$/.test(value)) return "Use letters, numbers, or dashes only";
+  return null;
+}
+
+export function sanitizeVoucherCaseNumber(value: string): string {
+  return value.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 20).toUpperCase();
+}

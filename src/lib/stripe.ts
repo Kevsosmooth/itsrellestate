@@ -40,19 +40,13 @@ export async function createApplicationInvoice(
         metadata: { application_type: formType },
       });
 
-  await stripe.invoiceItems.create({
-    customer: customer.id,
-    amount: APPLICATION_FEE_CENTS,
-    currency: "usd",
-    description: `ItsRellEstate ${formTypeLabel} Application Processing Fee — ${fullName}`,
-  });
-
   const dueDate = Math.floor(Date.now() / 1000) + DUE_DAYS * 24 * 60 * 60;
   const invoice = await stripe.invoices.create({
     customer: customer.id,
     collection_method: "send_invoice",
     due_date: dueDate,
     auto_advance: true,
+    pending_invoice_items_behavior: "exclude",
     metadata: {
       application_type: formType,
       applicant_email: email,
@@ -66,15 +60,31 @@ export async function createApplicationInvoice(
     throw new Error("Stripe invoice creation returned no id");
   }
 
+  await stripe.invoiceItems.create({
+    customer: customer.id,
+    invoice: invoice.id,
+    amount: APPLICATION_FEE_CENTS,
+    currency: "usd",
+    description: `ItsRellEstate ${formTypeLabel} Application Processing Fee — ${fullName}`,
+  });
+
   const finalized = await stripe.invoices.finalizeInvoice(invoice.id);
   if (!finalized.id) {
     throw new Error("Stripe invoice finalization returned no id");
   }
 
-  await stripe.invoices.sendInvoice(finalized.id);
-
   if (!finalized.hosted_invoice_url) {
     throw new Error("Stripe finalized invoice missing hosted_invoice_url");
+  }
+
+  try {
+    await stripe.invoices.sendInvoice(finalized.id);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.warn(
+      `[stripe-invoice] auto-send failed for invoice ${finalized.id}, invoice still created and can be sent manually:`,
+      message,
+    );
   }
 
   return {

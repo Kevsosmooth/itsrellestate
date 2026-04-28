@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import { FormWizard, useWizardContext } from "@/components/forms/form-wizard";
 import { FormField } from "@/components/forms/form-field";
 import { FormSection } from "@/components/forms/form-section";
@@ -42,7 +42,12 @@ import {
   UTIL_TRASH_OPTIONS,
   UTIL_AC_OPTIONS,
 } from "@/lib/form-constants";
-import { LANDLORD_STORAGE_KEY, markSubmitted, getSubmitted } from "@/lib/form-storage";
+import {
+  LANDLORD_STORAGE_KEY,
+  clearFormState, getOrCreatePendingSubmission, setPendingUploadsFolderId,
+  clearPendingSubmission,
+} from "@/lib/form-storage";
+import { isDev, devLandlordData, makeFakeStagedFile } from "@/lib/dev-autofill";
 
 const STEPS: FormStepDef[] = [
   {
@@ -102,26 +107,31 @@ async function uploadStagedFiles(
     const formData = new FormData();
     formData.append("file", staged.file);
     formData.append("folderId", uploadsFolderId);
-    await fetch("/api/upload", { method: "POST", body: formData });
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || `Upload failed for ${staged.file.name}`);
+    }
   }
 }
+
+type SubmissionPhase =
+  | "idle"
+  | "submitting-app"
+  | "uploading-files"
+  | "upload-failed"
+  | "complete";
 
 export function LandlordForm() {
   const [data, setData] = useState<LandlordFormData>(createEmptyLandlordForm);
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phase, setPhase] = useState<SubmissionPhase>("idle");
   const [submitProgress, setSubmitProgress] = useState("");
-  const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [submittedName, setSubmittedName] = useState("");
+  const [uploadsFolderId, setUploadsFolderId] = useState<string | null>(null);
+  const [folderId, setFolderId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const prev = getSubmitted(LANDLORD_STORAGE_KEY);
-    if (prev) {
-      setSubmittedName(prev.firstName);
-      setIsSubmitted(true);
-    }
-  }, []);
+  const submitLockRef = useRef(false);
 
   const handleChange = useCallback((field: string, value: unknown) => {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -139,40 +149,90 @@ export function LandlordForm() {
     setStagedFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const runUploads = useCallback(async (folderId: string) => {
+    if (stagedFiles.length === 0) return;
+    setPhase("uploading-files");
+    await uploadStagedFiles(
+      stagedFiles,
+      folderId,
+      (current, total) => setSubmitProgress(`Uploading ${current} of ${total} files...`),
+    );
+  }, [stagedFiles]);
+
   const handleSubmit = useCallback(async () => {
-    setIsSubmitting(true);
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setSubmitError("");
+
+    const pending = getOrCreatePendingSubmission(LANDLORD_STORAGE_KEY);
+
     try {
-      const res = await fetch("/api/apply/landlord", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error || "Submission failed");
-      }
-      const result = await res.json();
+      let currentFolderId = folderId;
+      let currentUploadsFolderId = uploadsFolderId;
 
-      if (stagedFiles.length > 0 && result.uploadsFolderId) {
-        await uploadStagedFiles(
-          stagedFiles,
-          result.uploadsFolderId,
-          (current, total) => setSubmitProgress(`Uploading ${current} of ${total} files...`),
-        );
+      if (!currentUploadsFolderId) {
+        setPhase("submitting-app");
+        setSubmitProgress("Submitting application...");
+
+        const res = await fetch("/api/apply/landlord", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": pending.idempotencyKey,
+          },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error || "Submission failed");
+        }
+        const result = await res.json();
+        currentFolderId = result.folderId as string;
+        currentUploadsFolderId = result.uploadsFolderId as string;
+        if (currentFolderId) setFolderId(currentFolderId);
+        if (currentUploadsFolderId) {
+          setUploadsFolderId(currentUploadsFolderId);
+          setPendingUploadsFolderId(LANDLORD_STORAGE_KEY, currentUploadsFolderId);
+        }
       }
 
-      markSubmitted(LANDLORD_STORAGE_KEY, data.llFirstName);
-      setIsSubmitted(true);
+      if (currentUploadsFolderId) {
+        await runUploads(currentUploadsFolderId);
+      }
+
+      if (currentFolderId && currentUploadsFolderId) {
+        setSubmitProgress("Finishing up...");
+        try {
+          await fetch("/api/apply/landlord/finalize", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": pending.idempotencyKey,
+            },
+            body: JSON.stringify({
+              folderId: currentFolderId,
+              uploadsFolderId: currentUploadsFolderId,
+            }),
+          });
+        } catch (err) {
+          console.error("Finalize call failed:", err);
+        }
+      }
+
+      clearFormState(LANDLORD_STORAGE_KEY);
+      clearPendingSubmission(LANDLORD_STORAGE_KEY);
+      setPhase("complete");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       setSubmitError(message);
-      setIsSubmitting(false);
+      setPhase(uploadsFolderId ? "upload-failed" : "idle");
+    } finally {
+      submitLockRef.current = false;
     }
-  }, [data, stagedFiles]);
+  }, [data, folderId, runUploads, uploadsFolderId]);
 
-  if (isSubmitted) {
-    return <FormSuccess type="landlord" firstName={submittedName || data.llFirstName} />;
+  if (phase === "complete") {
+    return <FormSuccess type="landlord" firstName={data.llFirstName} />;
   }
 
   return (
@@ -191,11 +251,22 @@ export function LandlordForm() {
         />
       )}
       onSubmit={handleSubmit}
-      isSubmitting={isSubmitting}
+      isSubmitting={phase === "submitting-app" || phase === "uploading-files"}
+      submitLabel={phase === "upload-failed" ? "Retry Upload" : undefined}
       submitProgress={submitProgress}
       submitError={submitError}
       storageKey={LANDLORD_STORAGE_KEY}
       title="Landlord Application"
+      devAutofill={isDev ? {
+        fill: () => devLandlordData() as unknown as Record<string, unknown>,
+        jumpToStep: 4,
+        onAfterFill: () => {
+          setStagedFiles([
+            makeFakeStagedFile("Deed"),
+            makeFakeStagedFile("HPD-Registration"),
+          ]);
+        },
+      } : undefined}
     />
   );
 }

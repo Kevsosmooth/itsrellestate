@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { TextAnimate } from "@/components/ui/text-animate";
 import { BlurFade } from "@/components/ui/blur-fade";
 import { NumberTicker } from "@/components/ui/number-ticker";
@@ -75,13 +76,13 @@ export function Hero() {
 
           <BlurFade delay={0.4} duration={0.4}>
             <div className="mt-6 sm:mt-10 flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
-              <a
+              <Link
                 href="/#apply"
                 className="inline-flex items-center justify-center min-h-[48px] px-8 rounded-xl bg-primary text-primary-foreground text-base font-semibold transition-all duration-200 hover:brightness-110 shadow-button focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Start Your Application
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/apply/landlord"
                 className="inline-flex items-center min-h-[48px] px-4 text-sm font-medium text-text-secondary transition-colors duration-200 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
@@ -98,7 +99,7 @@ export function Hero() {
                   <path d="M5 12h14" />
                   <path d="m12 5 7 7-7 7" />
                 </svg>
-              </a>
+              </Link>
             </div>
           </BlurFade>
         </div>

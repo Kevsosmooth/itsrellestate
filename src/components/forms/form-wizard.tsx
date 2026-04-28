@@ -15,11 +15,17 @@ interface FormWizardProps {
   renderStep: (stepIndex: number) => React.ReactNode;
   onSubmit: () => void;
   isSubmitting?: boolean;
+  submitLabel?: string;
   submitProgress?: string;
   submitError?: string;
   storageKey: string;
   title: string;
   className?: string;
+  devAutofill?: {
+    fill: () => Record<string, unknown>;
+    jumpToStep: number;
+    onAfterFill?: (filledData: Record<string, unknown>) => void;
+  };
 }
 
 const stepVariants = {
@@ -45,12 +51,15 @@ export function FormWizard({
   renderStep,
   onSubmit,
   isSubmitting = false,
+  submitLabel,
   submitProgress,
   submitError,
   storageKey,
   title,
   className,
+  devAutofill,
 }: FormWizardProps) {
+  const isDev = process.env.NODE_ENV === "development";
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection] = useState(0);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -61,14 +70,6 @@ export function FormWizard({
   const hasInteracted = useRef(false);
   const stepContentRef = useRef<HTMLDivElement>(null);
   const liveRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const saved = loadFormState<Record<string, unknown>>(storageKey);
-    if (saved) {
-      setShowResumeBanner(true);
-      setSavedTimestamp(saved.savedAt);
-    }
-  }, [storageKey]);
 
   const handleResume = useCallback(() => {
     const saved = loadFormState<Record<string, unknown>>(storageKey);
@@ -83,6 +84,16 @@ export function FormWizard({
     clearFormState(storageKey);
     setShowResumeBanner(false);
   }, [storageKey]);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- localStorage is client-only; reading at render time causes SSR/client hydration mismatch */
+  useEffect(() => {
+    const saved = loadFormState<Record<string, unknown>>(storageKey);
+    if (saved) {
+      setShowResumeBanner(true);
+      setSavedTimestamp(saved.savedAt);
+    }
+  }, [storageKey]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (showResumeBanner || !hasInteracted.current) return;
@@ -138,9 +149,8 @@ export function FormWizard({
       }
     }
     setErrors({});
-    clearFormState(storageKey);
     onSubmit();
-  }, [currentStep, steps, data, storageKey, onSubmit]);
+  }, [currentStep, steps, data, onSubmit]);
 
   const handleFieldChange = useCallback(
     (field: string, value: unknown) => {
@@ -166,6 +176,28 @@ export function FormWizard({
       className={cn("flex flex-col gap-6", className)}
     >
       <div ref={liveRef} aria-live="polite" className="sr-only" />
+
+      {isDev && devAutofill && (
+        <div className="rounded-xl border-2 border-dashed border-warning/60 bg-warning/5 p-3 flex items-center justify-between gap-3">
+          <p className="text-xs font-medium text-text-secondary">
+            <span className="font-bold text-warning">DEV MODE:</span> autofill all fields and jump to documents step.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              const filled = devAutofill.fill();
+              onBulkRestore(filled);
+              setCurrentStep(devAutofill.jumpToStep);
+              setErrors({});
+              hasInteracted.current = true;
+              devAutofill.onAfterFill?.(filled);
+            }}
+            className="min-h-[36px] px-4 rounded-lg bg-warning text-text-primary text-xs font-semibold transition-colors hover:bg-warning/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-warning"
+          >
+            Autofill
+          </button>
+        </div>
+      )}
 
       <AnimatePresence>
         {showResumeBanner && (
@@ -263,7 +295,7 @@ export function FormWizard({
       </p>
 
       {/* Step content */}
-      <div ref={stepContentRef} className="min-h-[200px]">
+      <div ref={stepContentRef} className="min-h-[200px] min-w-0">
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
             key={currentStep}
@@ -273,6 +305,7 @@ export function FormWizard({
             animate="center"
             exit="exit"
             transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="min-w-0"
           >
             <WizardErrorContext.Provider value={{ errors, onChange: handleFieldChange }}>
               {renderStep(currentStep)}
@@ -350,7 +383,7 @@ export function FormWizard({
                 {submitProgress || "Submitting..."}
               </span>
             ) : (
-              "Submit Application"
+              submitLabel || "Submit Application"
             )}
           </button>
         ) : (

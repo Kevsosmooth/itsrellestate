@@ -44,8 +44,10 @@ export function validateTenantStep2(data: TenantFormData): ValidationErrors {
     }
 
     if (SECTION_8_PROGRAMS.includes(data.assistProgram as typeof SECTION_8_PROGRAMS[number])) {
-      e.voucherNumber = v.required(data.voucherNumber, "Voucher number");
-      e.voucherExpDate = v.required(data.voucherExpDate, "Voucher expiration");
+      e.voucherNumber = v.required(data.voucherNumber, "Voucher number") ??
+        v.voucherCaseNumber(data.voucherNumber);
+      e.voucherExpDate = v.required(data.voucherExpDate, "Voucher expiration") ??
+        v.voucherExpiration(data.voucherExpDate);
       e.isTransferring = v.required(data.isTransferring, "Transfer status");
     }
   }

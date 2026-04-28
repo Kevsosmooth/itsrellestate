@@ -11,7 +11,7 @@ export function FormSection({ heading, description, children, className }: FormS
   return (
     <fieldset
       className={cn(
-        "border-none p-0 m-0 [&+&]:border-t [&+&]:border-border [&+&]:pt-6 [&+&]:mt-6",
+        "border-none p-0 m-0 min-w-0 [&+&]:border-t [&+&]:border-border [&+&]:pt-6 [&+&]:mt-6",
         className,
       )}
     >
