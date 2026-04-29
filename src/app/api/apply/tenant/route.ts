@@ -161,7 +161,6 @@ export async function POST(request: Request) {
           await appendStripeColumnsToRow(
             "Tenant Applications",
             rowNumber,
-            invoiceId,
             invoiceUrl,
           );
         }

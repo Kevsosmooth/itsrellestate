@@ -470,36 +470,23 @@ export async function appendSheetRow(
   return { rowNumber };
 }
 
-const TENANT_STRIPE_INVOICE_ID_COLUMN = "AY";
-const TENANT_STRIPE_INVOICE_URL_COLUMN = "AZ";
-const TENANT_PAID_DATE_COLUMN = "BA";
+const TENANT_STRIPE_INVOICE_URL_COLUMN = "BB";
 const TENANT_PAYMENT_STATUS_COLUMN = "C";
 
 export async function appendStripeColumnsToRow(
   sheetName: string,
   rowNumber: number,
-  invoiceId: string,
   invoiceUrl: string,
 ): Promise<void> {
   const sheets = getSheets();
   const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
   if (!spreadsheetId) throw new Error("GOOGLE_SPREADSHEET_ID not set");
 
-  await sheets.spreadsheets.values.batchUpdate({
+  await sheets.spreadsheets.values.update({
     spreadsheetId,
-    requestBody: {
-      valueInputOption: "RAW",
-      data: [
-        {
-          range: `'${sheetName}'!${TENANT_STRIPE_INVOICE_ID_COLUMN}${rowNumber}`,
-          values: [[invoiceId]],
-        },
-        {
-          range: `'${sheetName}'!${TENANT_STRIPE_INVOICE_URL_COLUMN}${rowNumber}`,
-          values: [[invoiceUrl]],
-        },
-      ],
-    },
+    range: `'${sheetName}'!${TENANT_STRIPE_INVOICE_URL_COLUMN}${rowNumber}`,
+    valueInputOption: "RAW",
+    requestBody: { values: [[invoiceUrl]] },
   });
 }
 
@@ -526,10 +513,10 @@ export async function findRowByCellValue(params: {
   return null;
 }
 
-export async function updateSheetRowByInvoiceId(
+export async function updateSheetRowByInvoiceUrl(
   sheetName: string,
-  invoiceId: string,
-  updates: { paymentStatus?: string; paidDate?: string },
+  invoiceUrl: string,
+  updates: { paymentStatus?: string },
 ): Promise<void> {
   const sheets = getSheets();
   const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
@@ -537,34 +524,19 @@ export async function updateSheetRowByInvoiceId(
 
   const rowNum = await findRowByCellValue({
     sheetName,
-    columnLetter: TENANT_STRIPE_INVOICE_ID_COLUMN,
-    value: invoiceId,
+    columnLetter: TENANT_STRIPE_INVOICE_URL_COLUMN,
+    value: invoiceUrl,
   });
   if (!rowNum) {
-    throw new Error(`No row found with stripe_invoice_id=${invoiceId}`);
+    throw new Error(`No row found with stripe_invoice_url=${invoiceUrl}`);
   }
 
-  const data: { range: string; values: string[][] }[] = [];
-  if (updates.paymentStatus) {
-    data.push({
-      range: `'${sheetName}'!${TENANT_PAYMENT_STATUS_COLUMN}${rowNum}`,
-      values: [[updates.paymentStatus]],
-    });
-  }
-  if (updates.paidDate) {
-    data.push({
-      range: `'${sheetName}'!${TENANT_PAID_DATE_COLUMN}${rowNum}`,
-      values: [[updates.paidDate]],
-    });
-  }
+  if (!updates.paymentStatus) return;
 
-  if (data.length === 0) return;
-
-  await sheets.spreadsheets.values.batchUpdate({
+  await sheets.spreadsheets.values.update({
     spreadsheetId,
-    requestBody: {
-      valueInputOption: "RAW",
-      data,
-    },
+    range: `'${sheetName}'!${TENANT_PAYMENT_STATUS_COLUMN}${rowNum}`,
+    valueInputOption: "RAW",
+    requestBody: { values: [[updates.paymentStatus]] },
   });
 }

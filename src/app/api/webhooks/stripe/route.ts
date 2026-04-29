@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
-import { updateSheetRowByInvoiceId } from "@/lib/google";
+import { updateSheetRowByInvoiceUrl } from "@/lib/google";
 
 export const runtime = "nodejs";
 
@@ -26,11 +26,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (event.type === "invoice.paid") {
-    const invoice = event.data.object as { id: string };
+    const invoice = event.data.object as { id: string; hosted_invoice_url?: string };
+    if (!invoice.hosted_invoice_url) {
+      console.warn("[stripe-webhook] invoice.paid event missing hosted_invoice_url, skipping sheet update");
+      return NextResponse.json({ received: true });
+    }
     try {
-      await updateSheetRowByInvoiceId("Tenant Applications", invoice.id, {
+      await updateSheetRowByInvoiceUrl("Tenant Applications", invoice.hosted_invoice_url, {
         paymentStatus: "Paid",
-        paidDate: new Date().toISOString(),
       });
     } catch (err) {
       console.error("[stripe-webhook] failed to update sheet:", err);
