@@ -11,6 +11,7 @@ import {
 import { createApplicationInvoice } from "@/lib/stripe";
 import { tenantSchema, sanitizeForStorage } from "@/lib/validation";
 import { upsertTenantContact } from "@/lib/contacts";
+import { upsertTenantApplicationPayload } from "@/lib/applications-neon";
 
 export const runtime = "nodejs";
 
@@ -89,6 +90,11 @@ export async function POST(request: Request) {
     delete (dataForStorage as Record<string, unknown>).paymentConfirmed;
     const sanitized = sanitizeForStorage(dataForStorage);
     await saveApplicationJSON(folderId, sanitized);
+    // Use the same sanitized payload that's written to Drive for the
+    // Neon mirror so the two representations don't drift. Codex round-1
+    // Finding #2 (2026-05-02) — backfill uses Drive JSON as the canonical
+    // base, so live submits must match.
+    const sanitizedPayload = sanitized as Record<string, unknown>;
 
     const folderProps = alreadyExisted ? await getFolderProperties(folderId) : {};
 
@@ -157,9 +163,9 @@ export async function POST(request: Request) {
         body.paymentPath,
         body.monthlyIncome,
         body.pathOtherNotes,
-        // BD: marketing-opt-in (yes/no). Default to "no" if undefined for
-        // back-compat with older client builds in flight.
-        (body as { marketingOptIn?: boolean }).marketingOptIn ? "yes" : "no",
+        // BD: marketing-opt-in (yes/no). Schema-optional for back-compat
+        // with older client builds in flight; treat undefined as "no".
+        body.marketingOptIn ? "yes" : "no",
       ]);
 
       await patchFolderProperties(folderId, {
@@ -182,8 +188,25 @@ export async function POST(request: Request) {
       phone: body.cellPhone,
       applicationId,
       submittedAt: timestamp,
-      marketingOptIn:
-        (body as { marketingOptIn?: boolean }).marketingOptIn ?? false,
+      marketingOptIn: body.marketingOptIn ?? false,
+    });
+
+    // Mirror the full submission body into Neon application_payloads so
+    // the CMS list/detail can serve from Postgres without a backfill.
+    // Same await semantics as upsertTenantContact: internally
+    // transactional, swallows its own errors, must never block the
+    // Sheets+Drive primary path during the dual-write soak window.
+    const sheetRowNumber = folderProps.sheetRowNumber
+      ? parseInt(folderProps.sheetRowNumber, 10) || null
+      : null;
+    await upsertTenantApplicationPayload({
+      applicationId,
+      folderId,
+      folderLink,
+      submittedAt: timestamp,
+      sheetRowNumber,
+      email: body.email,
+      payload: sanitizedPayload,
     });
 
     if (!folderProps.invoiceCreated) {

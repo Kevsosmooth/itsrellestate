@@ -8,6 +8,7 @@ import {
   getFolderProperties,
 } from "@/lib/google";
 import { landlordSchema, sanitizeForStorage } from "@/lib/validation";
+import { upsertLandlordApplicationPayload } from "@/lib/applications-neon";
 
 export const runtime = "nodejs";
 
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     const applicantName = `${body.llFirstName} ${body.llLastName}`.trim();
     const timestamp = new Date().toISOString();
 
-    const { folderId, folderLink, uploadsFolderId, alreadyExisted } =
+    const { folderId, folderLink, folderName, uploadsFolderId, alreadyExisted } =
       await getOrCreateApplicantFolder(
         landlordFolderId,
         applicantName,
@@ -62,8 +63,20 @@ export async function POST(request: Request) {
         idempotencyKey,
       );
 
-    const sanitized = sanitizeForStorage({ ...body, submittedAt: timestamp });
+    // Stable application id matches the encoding the CMS uses to derive
+    // ids from Drive folder names. Used for the Neon mirror below.
+    const applicationId = encodeURIComponent(
+      folderName.replace(/\s+/g, "_"),
+    );
+
+    const dataForStorage = { ...body, submittedAt: timestamp };
+    const sanitized = sanitizeForStorage(dataForStorage);
     await saveApplicationJSON(folderId, sanitized);
+    // Use the same sanitized payload that's written to Drive for the
+    // Neon mirror so the two representations don't drift. Codex round-1
+    // Finding #2 (2026-05-02) — sanitizeForStorage strips bank account
+    // detail; Neon must store the same redacted shape Drive does.
+    const sanitizedPayload = sanitized as Record<string, unknown>;
 
     const folderProps = alreadyExisted ? await getFolderProperties(folderId) : {};
 
@@ -84,7 +97,7 @@ export async function POST(request: Request) {
 
       const mailAddress = `${body.mailAddress}${body.mailAddress2 ? ` ${body.mailAddress2}` : ""}`;
 
-      await appendSheetRow("Landlord Applications", [
+      const { rowNumber } = await appendSheetRow("Landlord Applications", [
         timestamp,
         `${body.propAddress}${body.propAddress2 ? ` ${body.propAddress2}` : ""}`,
         body.propCity,
@@ -133,9 +146,32 @@ export async function POST(request: Request) {
         folderLink,
       ]);
 
-      await patchFolderProperties(folderId, { sheetRowAppended: "1" });
+      await patchFolderProperties(folderId, {
+        sheetRowAppended: "1",
+        sheetRowNumber: String(rowNumber),
+      });
       folderProps.sheetRowAppended = "1";
+      folderProps.sheetRowNumber = String(rowNumber);
     }
+
+    // Mirror the full submission body into Neon application_payloads.
+    // Awaited (matching the tenant route + contacts.ts pattern) so the
+    // request lifecycle doesn't kill the write mid-flight. The helper is
+    // internally transactional and swallows its own errors, so it can
+    // never block the Sheets+Drive primary path during the dual-write
+    // soak window.
+    const sheetRowNumber = folderProps.sheetRowNumber
+      ? parseInt(folderProps.sheetRowNumber, 10) || null
+      : null;
+    await upsertLandlordApplicationPayload({
+      applicationId,
+      folderId,
+      folderLink,
+      submittedAt: timestamp,
+      sheetRowNumber,
+      email: body.llEmail,
+      payload: sanitizedPayload,
+    });
 
     if (!folderProps.notificationSent) {
       const propAddress = `${body.propAddress}${body.propAddress2 ? ` ${body.propAddress2}` : ""}, ${body.propCity}`;

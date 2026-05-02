@@ -70,6 +70,7 @@ export const tenantSchema = z.object({
   disclosureAgreed: z.boolean(),
   signatureFirst: shortText,
   signatureLast: shortText,
+  marketingOptIn: z.boolean().optional(),
 });
 
 const rentalUnitSchema = z.object({

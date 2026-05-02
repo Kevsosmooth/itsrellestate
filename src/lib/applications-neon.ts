@@ -1,0 +1,160 @@
+/**
+ * Public-site → CMS application_payloads upsert.
+ *
+ * Per the Sheets→Neon migration plan: every public-site submission also
+ * lands in Neon's application_payloads at submit time, so the CMS list
+ * + detail views serve from Postgres without waiting for a backfill.
+ *
+ * Shape parity with the backfill script
+ *   (cms/scripts/backfill-applications-from-sheets.mjs):
+ *   1. Upsert the umbrella `applications` row first — the FK from
+ *      application_payloads.application_id requires it. Status only set
+ *      on INSERT; existing rows keep whatever the agent put on them.
+ *   2. Upsert `application_payloads` keyed on application_id with the
+ *      merged form body in payload_jsonb + the promoted columns.
+ *   3. Both statements run inside one Neon HTTP transaction.
+ *
+ * Errors are swallowed and logged. The Sheets+Drive write is still the
+ * primary path during the dual-write soak window — Neon must never block
+ * a successful submission.
+ */
+
+import { neon } from "@neondatabase/serverless";
+
+const WORKSPACE_ID = "00000000-0000-0000-0000-000000000001";
+
+let cachedSql: ReturnType<typeof neon> | null = null;
+function getSql() {
+  if (cachedSql) return cachedSql;
+  const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not configured.");
+  cachedSql = neon(url);
+  return cachedSql;
+}
+
+type CommonInput = {
+  applicationId: string;
+  folderId: string | null;
+  folderLink: string | null;
+  submittedAt: string;
+  sheetRowNumber: number | null;
+  payload: Record<string, unknown>;
+};
+
+export type TenantApplicationSnapshot = CommonInput & {
+  email: string | null;
+};
+
+export type LandlordApplicationSnapshot = CommonInput & {
+  email: string | null;
+};
+
+async function upsertApplicationPayload(
+  type: "tenant" | "landlord",
+  input: CommonInput & { email: string | null },
+): Promise<void> {
+  // All normalization + JSON encoding lives inside the try so a malformed
+  // caller can never throw past the error swallow. The dual-write must
+  // never block the Sheets+Drive primary path during the soak window.
+  try {
+    const emailLower = input.email
+      ? input.email.trim().toLowerCase() || null
+      : null;
+
+    const merged = {
+      ...input.payload,
+      submittedAt: input.submittedAt,
+    };
+
+    const sql = getSql();
+
+    await sql.transaction([
+      // 1. Umbrella applications row. Status only on INSERT — never
+      //    overwrites an agent's manual status edit. Drive metadata
+      //    re-syncs on every submit so a re-applied folder picks up the
+      //    latest folder id/link.
+      sql`
+        insert into applications (
+          id, workspace_id, applicant_type, submitted_at,
+          drive_folder_id, drive_folder_link, status, sheet_row_number
+        ) values (
+          ${input.applicationId}::text,
+          ${WORKSPACE_ID}::uuid,
+          ${type}::text,
+          ${input.submittedAt}::timestamptz,
+          ${input.folderId}::text,
+          ${input.folderLink}::text,
+          'unpaid',
+          ${input.sheetRowNumber}::integer
+        )
+        on conflict (id) do update
+          set applicant_type    = excluded.applicant_type,
+              submitted_at      = excluded.submitted_at,
+              drive_folder_id   = excluded.drive_folder_id,
+              drive_folder_link = excluded.drive_folder_link,
+              sheet_row_number  = coalesce(excluded.sheet_row_number, applications.sheet_row_number),
+              updated_at        = now()
+      `,
+      // 2. Payload row. Status mirrors whatever the canonical
+      //    applications row has — not a hardcoded value — so re-submits
+      //    by the same applicant don't undo a "paid"/"waived" status the
+      //    agent set. The subselect runs inside the same transaction so
+      //    it sees the row from step 1.
+      sql`
+        insert into application_payloads (
+          application_id, workspace_id, applicant_type, applicant_email,
+          status, submitted_at, drive_folder_id, drive_folder_link,
+          payload_jsonb, source_sheets, source_drive,
+          sheet_row_number, last_synced_at
+        )
+        select
+          ${input.applicationId}::text,
+          ${WORKSPACE_ID}::uuid,
+          ${type}::text,
+          ${emailLower}::citext,
+          a.status,
+          ${input.submittedAt}::timestamptz,
+          ${input.folderId}::text,
+          ${input.folderLink}::text,
+          ${JSON.stringify(merged)}::jsonb,
+          true,
+          true,
+          ${input.sheetRowNumber}::integer,
+          now()
+          from applications a
+         where a.id = ${input.applicationId}::text
+        on conflict (application_id) do update
+          set workspace_id      = excluded.workspace_id,
+              applicant_type    = excluded.applicant_type,
+              applicant_email   = excluded.applicant_email,
+              status            = excluded.status,
+              submitted_at      = excluded.submitted_at,
+              drive_folder_id   = excluded.drive_folder_id,
+              drive_folder_link = excluded.drive_folder_link,
+              payload_jsonb     = excluded.payload_jsonb,
+              source_sheets     = true,
+              source_drive      = true,
+              sheet_row_number  = coalesce(excluded.sheet_row_number, application_payloads.sheet_row_number),
+              last_synced_at    = now()
+      `,
+    ]);
+  } catch (err) {
+    // Never block the form submit. The CMS backfill is the safety net.
+    console.error(
+      `[applications-neon] upsert ${type} application failed:`,
+      err,
+    );
+  }
+}
+
+export async function upsertTenantApplicationPayload(
+  input: TenantApplicationSnapshot,
+): Promise<void> {
+  await upsertApplicationPayload("tenant", input);
+}
+
+export async function upsertLandlordApplicationPayload(
+  input: LandlordApplicationSnapshot,
+): Promise<void> {
+  await upsertApplicationPayload("landlord", input);
+}
