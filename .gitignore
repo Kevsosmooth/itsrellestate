@@ -8,11 +8,11 @@ out/
 # production
 build/
 
-# env files
+# env files — every variant. .env.vercel.production held production secrets
+# and got blocked by GitHub push protection on 2026-05-02; never commit it.
 .env
-.env.local
-.env.production.local
-.env.development.local
+.env.*
+!.env.example
 
 # debug
 npm-debug.log*

@@ -1265,7 +1265,7 @@ function Step6Auth({ data, onChange, errors }: StepProps) {
         )}
       </FormSection>
 
-      <FormSection heading="Marketing Communications (Optional)" description="Stay in the loop on new listings, opportunities, and updates from Nyrell. You can opt out at any time.">
+      <FormSection heading="Marketing Communications (Optional)" description="Stay in the loop on new listings, opportunities, and updates from Nyrell. Opting in is not required to apply, and you can opt out at any time.">
         <label className="flex items-start gap-3 cursor-pointer min-h-[44px]">
           <input
             type="checkbox"
@@ -1274,10 +1274,13 @@ function Step6Auth({ data, onChange, errors }: StepProps) {
             className="mt-0.5 w-5 h-5 rounded accent-primary shrink-0"
           />
           <span className="text-sm text-text-primary">
-            I want to hear about new listings and future opportunities.
-            I understand I can unsubscribe by replying STOP to any text or
-            clicking unsubscribe in any email. Message and data rates may
-            apply for SMS.
+            I agree to receive promotional emails and recurring marketing
+            text messages from ItsRellEstate at the email address and
+            phone number I provided. I understand consent is NOT a
+            condition of applying or receiving services. I can unsubscribe
+            at any time by replying STOP to any text or clicking unsubscribe
+            in any email. Reply HELP for help. Message and data rates may
+            apply.
           </span>
         </label>
       </FormSection>

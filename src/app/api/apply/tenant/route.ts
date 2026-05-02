@@ -170,11 +170,12 @@ export async function POST(request: Request) {
       folderProps.sheetRowNumber = String(rowNumber);
     }
 
-    // Mirror this submission into the CMS Contacts table. Idempotent via
-    // (source_type, source_id) — re-running won't duplicate. Failure is
-    // logged and swallowed so it can never break the form submit; the
-    // CMS backfill script handles missed rows.
-    void upsertTenantContact({
+    // Mirror this submission into the CMS Contacts table. Awaited so
+    // the request lifecycle doesn't kill the write mid-flight (Codex
+    // round-1 Finding 7). The helper is internally transactional and
+    // swallows its own errors; awaiting only makes the call sequential
+    // not blocking.
+    await upsertTenantContact({
       email: body.email,
       firstName: body.firstName,
       lastName: body.lastName,
