@@ -335,24 +335,12 @@ export function TenantForm() {
         await runUploads(currentUploadsFolderId, currentOccupantFolderIds);
       }
 
-      if (currentFolderId && currentUploadsFolderId) {
-        setSubmitProgress("Finishing up...");
-        try {
-          await fetch("/api/apply/tenant/finalize", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Idempotency-Key": pending.idempotencyKey,
-            },
-            body: JSON.stringify({
-              folderId: currentFolderId,
-              uploadsFolderId: currentUploadsFolderId,
-            }),
-          });
-        } catch (err) {
-          console.error("Finalize call failed:", err);
-        }
-      }
+      // Note: we used to call /api/apply/tenant/finalize here to save a
+      // pre-rendered application.pdf into Drive. That step was removed
+      // because the CMS regenerates the PDF on demand from the saved
+      // application data — saving a stale copy at submit time was
+      // unnecessary and the flag-before-write race could mark a record
+      // "PDF generated" when no PDF actually existed.
 
       clearFormState(TENANT_STORAGE_KEY);
       clearPendingSubmission(TENANT_STORAGE_KEY);

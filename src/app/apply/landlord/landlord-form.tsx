@@ -200,24 +200,10 @@ export function LandlordForm() {
         await runUploads(currentUploadsFolderId);
       }
 
-      if (currentFolderId && currentUploadsFolderId) {
-        setSubmitProgress("Finishing up...");
-        try {
-          await fetch("/api/apply/landlord/finalize", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Idempotency-Key": pending.idempotencyKey,
-            },
-            body: JSON.stringify({
-              folderId: currentFolderId,
-              uploadsFolderId: currentUploadsFolderId,
-            }),
-          });
-        } catch (err) {
-          console.error("Finalize call failed:", err);
-        }
-      }
+      // Note: we used to call /api/apply/landlord/finalize here to save a
+      // pre-rendered application.pdf into Drive. That step was removed
+      // because the CMS regenerates the PDF on demand from the saved
+      // application data.
 
       clearFormState(LANDLORD_STORAGE_KEY);
       clearPendingSubmission(LANDLORD_STORAGE_KEY);
