@@ -53,6 +53,8 @@ export function getDrive() {
 interface ApplicantFolderResult {
   folderId: string;
   folderLink: string;
+  /** Drive folder name; CMS uses an encoded form of this as the stable applicationId. */
+  folderName: string;
   uploadsFolderId: string;
   occupantFolderIds: Record<string, string>;
   alreadyExisted: boolean;
@@ -61,7 +63,12 @@ interface ApplicantFolderResult {
 async function findFolderByIdempotencyKey(
   parentFolderId: string,
   idempotencyKey: string,
-): Promise<{ folderId: string; folderLink: string; properties: Record<string, string> } | null> {
+): Promise<{
+  folderId: string;
+  folderLink: string;
+  folderName: string;
+  properties: Record<string, string>;
+} | null> {
   const drive = getDrive();
   const res = await drive.files.list({
     q: [
@@ -70,7 +77,7 @@ async function findFolderByIdempotencyKey(
       `appProperties has { key='idempotencyKey' and value='${idempotencyKey}' }`,
       `trashed = false`,
     ].join(" and "),
-    fields: "files(id,webViewLink,appProperties,createdTime)",
+    fields: "files(id,name,webViewLink,appProperties,createdTime)",
     orderBy: "createdTime",
     pageSize: 5,
   });
@@ -80,6 +87,7 @@ async function findFolderByIdempotencyKey(
   return {
     folderId: winner.id!,
     folderLink: winner.webViewLink!,
+    folderName: winner.name ?? "",
     properties: (winner.appProperties as Record<string, string>) ?? {},
   };
 }
@@ -145,6 +153,7 @@ export async function getOrCreateApplicantFolder(
     return {
       folderId: existing.folderId,
       folderLink: existing.folderLink,
+      folderName: existing.folderName,
       uploadsFolderId,
       occupantFolderIds,
       alreadyExisted: true,
@@ -203,6 +212,7 @@ export async function getOrCreateApplicantFolder(
   return {
     folderId: folder.data.id!,
     folderLink: folder.data.webViewLink!,
+    folderName,
     uploadsFolderId: uploadsFolder.data.id!,
     occupantFolderIds,
     alreadyExisted: false,
@@ -470,13 +480,16 @@ export async function appendSheetRow(
   return { rowNumber };
 }
 
-const TENANT_STRIPE_INVOICE_URL_COLUMN = "BB";
+// Stripe rotates hosted_invoice_url between invoice state transitions
+// (finalized vs paid), so we must key the row off the stable invoice id.
+// BA-BC: paymentPath, monthlyIncome, pathOtherNotes. BD reserved. BE: invoice id.
+const TENANT_STRIPE_INVOICE_ID_COLUMN = "BE";
 const TENANT_PAYMENT_STATUS_COLUMN = "C";
 
 export async function appendStripeColumnsToRow(
   sheetName: string,
   rowNumber: number,
-  invoiceUrl: string,
+  invoiceId: string,
 ): Promise<void> {
   const sheets = getSheets();
   const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
@@ -484,9 +497,9 @@ export async function appendStripeColumnsToRow(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${sheetName}'!${TENANT_STRIPE_INVOICE_URL_COLUMN}${rowNumber}`,
+    range: `'${sheetName}'!${TENANT_STRIPE_INVOICE_ID_COLUMN}${rowNumber}`,
     valueInputOption: "RAW",
-    requestBody: { values: [[invoiceUrl]] },
+    requestBody: { values: [[invoiceId]] },
   });
 }
 
@@ -513,9 +526,9 @@ export async function findRowByCellValue(params: {
   return null;
 }
 
-export async function updateSheetRowByInvoiceUrl(
+export async function updateSheetRowByInvoiceId(
   sheetName: string,
-  invoiceUrl: string,
+  invoiceId: string,
   updates: { paymentStatus?: string },
 ): Promise<void> {
   const sheets = getSheets();
@@ -524,11 +537,11 @@ export async function updateSheetRowByInvoiceUrl(
 
   const rowNum = await findRowByCellValue({
     sheetName,
-    columnLetter: TENANT_STRIPE_INVOICE_URL_COLUMN,
-    value: invoiceUrl,
+    columnLetter: TENANT_STRIPE_INVOICE_ID_COLUMN,
+    value: invoiceId,
   });
   if (!rowNum) {
-    throw new Error(`No row found with stripe_invoice_url=${invoiceUrl}`);
+    throw new Error(`No row found with stripe_invoice_id=${invoiceId}`);
   }
 
   if (!updates.paymentStatus) return;

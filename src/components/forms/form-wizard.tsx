@@ -21,11 +21,14 @@ interface FormWizardProps {
   storageKey: string;
   title: string;
   className?: string;
-  devAutofill?: {
-    fill: () => Record<string, unknown>;
-    jumpToStep: number;
-    onAfterFill?: (filledData: Record<string, unknown>) => void;
-  };
+  devAutofill?: DevAutofillPreset | DevAutofillPreset[];
+}
+
+export interface DevAutofillPreset {
+  label?: string;
+  fill: () => Record<string, unknown>;
+  jumpToStep: number;
+  onAfterFill?: (filledData: Record<string, unknown>) => void;
 }
 
 const stepVariants = {
@@ -177,27 +180,36 @@ export function FormWizard({
     >
       <div ref={liveRef} aria-live="polite" className="sr-only" />
 
-      {isDev && devAutofill && (
-        <div className="rounded-xl border-2 border-dashed border-warning/60 bg-warning/5 p-3 flex items-center justify-between gap-3">
-          <p className="text-xs font-medium text-text-secondary">
-            <span className="font-bold text-warning">DEV MODE:</span> autofill all fields and jump to documents step.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              const filled = devAutofill.fill();
-              onBulkRestore(filled);
-              setCurrentStep(devAutofill.jumpToStep);
-              setErrors({});
-              hasInteracted.current = true;
-              devAutofill.onAfterFill?.(filled);
-            }}
-            className="min-h-[36px] px-4 rounded-lg bg-warning text-text-primary text-xs font-semibold transition-colors hover:bg-warning/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-warning"
-          >
-            Autofill
-          </button>
-        </div>
-      )}
+      {isDev && devAutofill && (() => {
+        const presets: DevAutofillPreset[] = Array.isArray(devAutofill) ? devAutofill : [devAutofill];
+        const runPreset = (preset: DevAutofillPreset) => {
+          const filled = preset.fill();
+          onBulkRestore(filled);
+          setCurrentStep(preset.jumpToStep);
+          setErrors({});
+          hasInteracted.current = true;
+          preset.onAfterFill?.(filled);
+        };
+        return (
+          <div className="rounded-xl border-2 border-dashed border-warning/60 bg-warning/5 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-xs font-medium text-text-secondary">
+              <span className="font-bold text-warning">DEV MODE:</span> autofill all fields and jump to documents step.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {presets.map((preset, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => runPreset(preset)}
+                  className="min-h-[36px] px-4 rounded-lg bg-warning text-text-primary text-xs font-semibold transition-colors hover:bg-warning/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-warning"
+                >
+                  {preset.label ?? "Autofill"}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <AnimatePresence>
         {showResumeBanner && (

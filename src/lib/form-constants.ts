@@ -38,6 +38,12 @@ export const US_STATES = [
   { value: "MP", label: "Northern Mariana Islands" },
 ] as const;
 
+export const PAYMENT_PATH_OPTIONS = [
+  { value: "voucher", label: "Voucher / Subsidy" },
+  { value: "out-of-pocket", label: "Out of Pocket" },
+  { value: "other", label: "Other" },
+] as const;
+
 export const ASSIST_PROGRAM_OPTIONS = [
   { value: "NYCHA", label: "NYCHA" },
   { value: "HPD", label: "HPD" },

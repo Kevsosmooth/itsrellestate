@@ -3,7 +3,9 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
+  // SAMEORIGIN, not DENY: the admin inline PDF viewer renders a same-origin iframe.
+  // CSP frame-ancestors 'self' is the canonical control; this is the legacy fallback.
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "X-XSS-Protection", value: "1; mode=block" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {

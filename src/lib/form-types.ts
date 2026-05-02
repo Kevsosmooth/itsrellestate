@@ -37,6 +37,7 @@ export interface TenantFormData {
   viewedApartment: "yes" | "no" | "";
   viewingDate: string;
 
+  paymentPath: "voucher" | "out-of-pocket" | "other" | "";
   hasAssistance: "yes" | "no" | "";
   assistProgram: string;
   otherProgramName: string;
@@ -44,6 +45,8 @@ export interface TenantFormData {
   voucherNumber: string;
   voucherExpDate: string;
   isTransferring: "yes" | "no" | "";
+  monthlyIncome: string;
+  pathOtherNotes: string;
   fromShelter: "yes" | "no" | "";
   landlordName: string;
   landlordPhone: string;
@@ -77,6 +80,13 @@ export interface TenantFormData {
   isSmoker: "yes" | "no" | "";
   hasPets: "yes" | "no" | "";
   disclosureAgreed: boolean;
+  /**
+   * Marketing communications opt-in. Defaults to false. When true, the
+   * applicant has consented to promotional emails / SMS. Stored in the
+   * sheet (Tenant Applications column BH) and into contacts.
+   * marketing_opt_in via the application webhook on the CMS side.
+   */
+  marketingOptIn: boolean;
   signatureFirst: string;
   signatureLast: string;
 }
@@ -170,9 +180,11 @@ export function createEmptyTenantForm(): TenantFormData {
     emergencyContactName: "", emergencyContactPhone: "", preferredBorough: "",
     currentStreet: "", currentStreet2: "", currentCity: "", currentState: "",
     currentZip: "", viewedApartment: "", viewingDate: "",
+    paymentPath: "",
     hasAssistance: "", assistProgram: "", otherProgramName: "",
     voucherBedrooms: "", voucherNumber: "", voucherExpDate: "",
-    isTransferring: "", fromShelter: "", landlordName: "", landlordPhone: "",
+    isTransferring: "", monthlyIncome: "", pathOtherNotes: "",
+    fromShelter: "", landlordName: "", landlordPhone: "",
     landlordEmail: "", cashAssistActive: "", creditScore: "",
     hasOccupants: "", occupantCount: "", occupants: [],
     currentlyWorking: "", employerName: "", employerAddress: "",
@@ -183,6 +195,7 @@ export function createEmptyTenantForm(): TenantFormData {
     housingSpecName: "", housingSpecPhone: "", housingSpecEmail: "",
     paymentConfirmed: false,
     isSmoker: "", hasPets: "", disclosureAgreed: false,
+    marketingOptIn: false,
     signatureFirst: "", signatureLast: "",
   };
 }

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     "Terms of service for ItsRellEstate, the website of Nyrell Nunez, licensed NYC real estate agent.",
 };
 
-const EFFECTIVE_DATE = "April 22, 2026";
+const EFFECTIVE_DATE = "May 2, 2026";
 
 interface SectionProps {
   heading: string;
@@ -142,7 +142,32 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section heading="7. No Guarantees">
+            <Section heading="7. Communications and Marketing Consent">
+              <p>
+                By submitting an application, you agree we may use the email
+                address and phone number you provide to send you operational
+                messages about your application — for example, status updates,
+                document requests, viewing scheduling, and payment
+                confirmations. These messages are part of providing the
+                service you applied for.
+              </p>
+              <p>
+                Promotional emails or SMS about new listings or future
+                opportunities are sent ONLY if you explicitly opt in by
+                checking the marketing consent box on the application form.
+                You can withdraw consent at any time by replying STOP to any
+                text message, clicking unsubscribe in any email, or
+                contacting us. Standard message and data rates may apply for
+                SMS. Frequency varies based on your application activity and
+                any marketing program you opt into. Reply HELP for assistance.
+              </p>
+              <p>
+                Withdrawing marketing consent does not stop operational
+                communications about an active application.
+              </p>
+            </Section>
+
+            <Section heading="8. No Guarantees">
               <p>
                 We do not guarantee:
               </p>
@@ -159,7 +184,7 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section heading="8. Intellectual Property">
+            <Section heading="9. Intellectual Property">
               <p>
                 All content on the Site, including text, images, logos, and
                 design, is the property of Nyrell Nunez or used with
@@ -169,7 +194,7 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section heading="9. Limitation of Liability">
+            <Section heading="10. Limitation of Liability">
               <p>
                 To the fullest extent permitted by law, Nyrell Nunez and
                 Skyline Residential &amp; Commercial shall not be liable for
@@ -180,7 +205,7 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section heading="10. Third-Party Links">
+            <Section heading="11. Third-Party Links">
               <p>
                 The Site may contain links to third-party websites or services
                 (such as social media profiles). We are not responsible for the
@@ -189,7 +214,7 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section heading="11. Governing Law">
+            <Section heading="12. Governing Law">
               <p>
                 These Terms are governed by and construed in accordance with the
                 laws of the State of New York, without regard to conflict of law
@@ -198,7 +223,7 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section heading="12. Changes to Terms">
+            <Section heading="13. Changes to Terms">
               <p>
                 We may update these Terms at any time by posting the revised
                 version on this page with an updated effective date. Your
@@ -207,7 +232,7 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section heading="13. Contact">
+            <Section heading="14. Contact">
               <p>
                 If you have questions about these Terms, contact us at:
               </p>

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     "Privacy policy for ItsRellEstate, the website of Nyrell Nunez, licensed NYC real estate agent.",
 };
 
-const EFFECTIVE_DATE = "April 22, 2026";
+const EFFECTIVE_DATE = "May 2, 2026";
 
 interface SectionProps {
   heading: string;
@@ -222,7 +222,41 @@ export default function PrivacyPage() {
               </ul>
             </Section>
 
-            <Section heading="5. Information Sharing">
+            <Section heading="5. Communications and Marketing Consent">
+              <p>
+                <strong className="text-text-primary">
+                  Operational communications:
+                </strong>{" "}
+                We will use the email address and phone number you provide on
+                your application to send you messages about your application
+                (status updates, document requests, viewing scheduling, payment
+                confirmations, and similar transactional matters). These
+                communications are part of providing the service you applied
+                for and are not optional while your application is active.
+              </p>
+              <p>
+                <strong className="text-text-primary">
+                  Marketing communications:
+                </strong>{" "}
+                We will only send you promotional emails or text messages
+                about new listings, upcoming opportunities, or general
+                real-estate updates if you have given explicit consent by
+                checking the marketing opt-in box on the application form. You
+                can withdraw consent at any time by replying STOP to any text
+                message, clicking unsubscribe in any email, or contacting us
+                using the details in Section 14. Withdrawing marketing consent
+                does not affect operational communications.
+              </p>
+              <p>
+                <strong className="text-text-primary">SMS rates:</strong>{" "}
+                Standard message and data rates may apply for text messages
+                sent or received. Frequency varies based on your application
+                activity and any marketing program you opt into. Reply STOP to
+                cancel marketing texts; reply HELP for assistance.
+              </p>
+            </Section>
+
+            <Section heading="6. Information Sharing">
               <p>
                 We do not sell your personal information. We may share your
                 information with:
@@ -262,7 +296,7 @@ export default function PrivacyPage() {
               </p>
             </Section>
 
-            <Section heading="6. Cookies and Tracking">
+            <Section heading="7. Cookies and Tracking">
               <p>
                 The Site does not use cookies. We do not use Google Analytics,
                 Meta Pixel, or any other third-party tracking or advertising
@@ -271,7 +305,7 @@ export default function PrivacyPage() {
               </p>
             </Section>
 
-            <Section heading="7. Third-Party Services">
+            <Section heading="8. Third-Party Services">
               <p>
                 <strong className="text-text-primary">Fonts:</strong> The Site
                 uses Google Fonts (Plus Jakarta Sans), which are self-hosted
@@ -303,7 +337,7 @@ export default function PrivacyPage() {
               </p>
             </Section>
 
-            <Section heading="8. Data Security">
+            <Section heading="9. Data Security">
               <p>
                 We take reasonable measures to protect your personal
                 information. However, no method of transmission over the
@@ -322,7 +356,7 @@ export default function PrivacyPage() {
               </p>
             </Section>
 
-            <Section heading="9. Data Retention">
+            <Section heading="10. Data Retention">
               <p>
                 <strong className="text-text-primary">Draft data:</strong>{" "}
                 Stored in your browser for up to 7 days, then automatically
@@ -338,7 +372,7 @@ export default function PrivacyPage() {
               </p>
             </Section>
 
-            <Section heading="10. Your Rights">
+            <Section heading="11. Your Rights">
               <p>You have the right to:</p>
               <ul className="list-disc pl-6 space-y-1">
                 <li>
@@ -370,11 +404,11 @@ export default function PrivacyPage() {
               </ul>
               <p>
                 To exercise any of these rights, contact us using the
-                information in Section 13 below.
+                information in Section 14 below.
               </p>
             </Section>
 
-            <Section heading="11. Children's Privacy">
+            <Section heading="12. Children's Privacy">
               <p>
                 The Site is not directed to individuals under 18 years of age.
                 We do not knowingly collect personal information from children.
@@ -383,7 +417,7 @@ export default function PrivacyPage() {
               </p>
             </Section>
 
-            <Section heading="12. Changes to This Policy">
+            <Section heading="13. Changes to This Policy">
               <p>
                 We may update this Privacy Policy from time to time. Changes
                 will be posted on this page with an updated effective date. We
@@ -391,7 +425,7 @@ export default function PrivacyPage() {
               </p>
             </Section>
 
-            <Section heading="13. Contact">
+            <Section heading="14. Contact">
               <p>
                 If you have questions about this Privacy Policy or wish to
                 exercise your data rights, contact us at:

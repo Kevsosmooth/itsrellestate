@@ -16,7 +16,7 @@ import type { TenantFormData, Occupant, FormStepDef, StagedAttachments } from "@
 import { createEmptyTenantForm, createEmptyStagedAttachments } from "@/lib/form-types";
 import { formatPhone, formatZip, formatDOB } from "@/lib/form-formatters";
 import { sanitizeVoucherCaseNumber } from "@/lib/form-validators";
-import { isDev, devTenantData, makeFakeStagedFile } from "@/lib/dev-autofill";
+import { isDev, devTenantData, devTenantDataCash, makeFakeStagedFile } from "@/lib/dev-autofill";
 import {
   TENANT_STORAGE_KEY,
   clearFormState, getOrCreatePendingSubmission, setPendingUploadsFolderId,
@@ -26,7 +26,7 @@ import {
   BOROUGH_OPTIONS, US_STATES, ASSIST_PROGRAM_OPTIONS, VOUCHER_BEDROOM_OPTIONS,
   CREDIT_SCORE_OPTIONS, OCCUPANT_COUNT_OPTIONS, PAY_TYPE_OPTIONS,
   PAY_FREQUENCY_OPTIONS, INCOME_SOURCE_OPTIONS, SECTION_8_PROGRAMS,
-  DOC_CATEGORY_CONFIGS, type DocCategory,
+  PAYMENT_PATH_OPTIONS, DOC_CATEGORY_CONFIGS, type DocCategory,
 } from "@/lib/form-constants";
 import {
   validateTenantStep1, validateTenantStep2, validateTenantStep3,
@@ -49,11 +49,13 @@ let occupantIdCounter = 1;
 
 function getRequiredDocCategories(data: TenantFormData): DocCategory[] {
   const required: DocCategory[] = ["photoId", "socialSecurityCard"];
-  const isSection8 = SECTION_8_PROGRAMS.includes(data.assistProgram as typeof SECTION_8_PROGRAMS[number]);
-  const isCityFHEPS = data.assistProgram === "CityFHEPS";
-  const isNoProgram = data.hasAssistance === "no";
-  const isHASA = data.assistProgram === "HASA";
-  const isOther = data.assistProgram === "Other";
+  const isVoucher = data.paymentPath === "voucher";
+  const isOutOfPocket = data.paymentPath === "out-of-pocket";
+  const isOtherPath = data.paymentPath === "other";
+  const isSection8 = isVoucher && SECTION_8_PROGRAMS.includes(data.assistProgram as typeof SECTION_8_PROGRAMS[number]);
+  const isCityFHEPS = isVoucher && data.assistProgram === "CityFHEPS";
+  const isHASA = isVoucher && data.assistProgram === "HASA";
+  const isOtherProgram = isVoucher && data.assistProgram === "Other";
 
   if (isSection8) {
     required.push("voucherCoverLetter", "pinLetter");
@@ -70,7 +72,7 @@ function getRequiredDocCategories(data: TenantFormData): DocCategory[] {
   if (isCityFHEPS) {
     required.push("fullVoucher");
   }
-  if (isNoProgram || isHASA || isOther) {
+  if (isHASA || isOtherProgram || isOutOfPocket || isOtherPath) {
     required.push("taxReturns", "bankStatement");
   }
   return required;
@@ -78,11 +80,13 @@ function getRequiredDocCategories(data: TenantFormData): DocCategory[] {
 
 function getVisibleDocCategories(data: TenantFormData): DocCategory[] {
   const visible: DocCategory[] = ["photoId", "socialSecurityCard"];
-  const isSection8 = SECTION_8_PROGRAMS.includes(data.assistProgram as typeof SECTION_8_PROGRAMS[number]);
-  const isCityFHEPS = data.assistProgram === "CityFHEPS";
-  const isNoProgram = data.hasAssistance === "no";
-  const isHASA = data.assistProgram === "HASA";
-  const isOther = data.assistProgram === "Other";
+  const isVoucher = data.paymentPath === "voucher";
+  const isOutOfPocket = data.paymentPath === "out-of-pocket";
+  const isOtherPath = data.paymentPath === "other";
+  const isSection8 = isVoucher && SECTION_8_PROGRAMS.includes(data.assistProgram as typeof SECTION_8_PROGRAMS[number]);
+  const isCityFHEPS = isVoucher && data.assistProgram === "CityFHEPS";
+  const isHASA = isVoucher && data.assistProgram === "HASA";
+  const isOtherProgram = isVoucher && data.assistProgram === "Other";
 
   if (isSection8) {
     visible.push("voucherCoverLetter", "pinLetter");
@@ -99,7 +103,7 @@ function getVisibleDocCategories(data: TenantFormData): DocCategory[] {
   if (isCityFHEPS) {
     visible.push("fullVoucher");
   }
-  if (isNoProgram || isHASA || isOther) {
+  if (isHASA || isOtherProgram || isOutOfPocket || isOtherPath) {
     visible.push("letterOfResidency", "landlordRecommendation", "taxReturns", "bankStatement");
   }
   visible.push("other");
@@ -227,6 +231,31 @@ type SubmissionPhase =
   | "uploading-files"
   | "upload-failed"
   | "complete";
+
+function stageDevDocs(
+  data: TenantFormData,
+  setStagedAttachments: React.Dispatch<React.SetStateAction<StagedAttachments>>,
+): void {
+  const required = getRequiredDocCategories(data);
+  const adults = getAdultOccupants(data);
+  const owners = adults.length > 0
+    ? [PRIMARY_APPLICANT_KEY, ...adults.map((a) => a.key)]
+    : [undefined];
+
+  const next = createEmptyStagedAttachments();
+  for (const cat of required) {
+    const config = DOC_CATEGORY_CONFIGS[cat];
+    const isPerPerson = adults.length > 0 && PER_PERSON_DOC_CATEGORIES.includes(cat);
+    if (isPerPerson) {
+      for (const owner of owners) {
+        next[cat].push(makeFakeStagedFile(`${config.label}-${owner ?? "primary"}`, owner));
+      }
+    } else {
+      next[cat].push(makeFakeStagedFile(config.label));
+    }
+  }
+  setStagedAttachments(next);
+}
 
 export function TenantForm() {
   const [data, setData] = useState<TenantFormData>(createEmptyTenantForm);
@@ -367,32 +396,20 @@ export function TenantForm() {
       submitError={submitError}
       storageKey={TENANT_STORAGE_KEY}
       title="Tenant Application"
-      devAutofill={isDev ? {
-        fill: () => devTenantData() as unknown as Record<string, unknown>,
-        jumpToStep: 4,
-        onAfterFill: (filled) => {
-          const filledTenant = filled as unknown as TenantFormData;
-          const required = getRequiredDocCategories(filledTenant);
-          const adults = getAdultOccupants(filledTenant);
-          const owners = adults.length > 0
-            ? [PRIMARY_APPLICANT_KEY, ...adults.map((a) => a.key)]
-            : [undefined];
-
-          const next = createEmptyStagedAttachments();
-          for (const cat of required) {
-            const config = DOC_CATEGORY_CONFIGS[cat];
-            const isPerPerson = adults.length > 0 && PER_PERSON_DOC_CATEGORIES.includes(cat);
-            if (isPerPerson) {
-              for (const owner of owners) {
-                next[cat].push(makeFakeStagedFile(`${config.label}-${owner ?? "primary"}`, owner));
-              }
-            } else {
-              next[cat].push(makeFakeStagedFile(config.label));
-            }
-          }
-          setStagedAttachments(next);
+      devAutofill={isDev ? [
+        {
+          label: "Voucher (HCV)",
+          fill: () => devTenantData() as unknown as Record<string, unknown>,
+          jumpToStep: 4,
+          onAfterFill: (filled) => stageDevDocs(filled as unknown as TenantFormData, setStagedAttachments),
         },
-      } : undefined}
+        {
+          label: "Out of Pocket",
+          fill: () => devTenantDataCash() as unknown as Record<string, unknown>,
+          jumpToStep: 4,
+          onAfterFill: (filled) => stageDevDocs(filled as unknown as TenantFormData, setStagedAttachments),
+        },
+      ] : undefined}
     />
   );
 }
@@ -592,21 +609,48 @@ function Step1Contact({ data, onChange, errors }: StepProps) {
 }
 
 function Step2Assistance({ data, onChange, errors }: StepProps) {
+  const isVoucher = data.paymentPath === "voucher";
+  const isOutOfPocket = data.paymentPath === "out-of-pocket";
+  const isOther = data.paymentPath === "other";
   const isSection8 = SECTION_8_PROGRAMS.includes(data.assistProgram as typeof SECTION_8_PROGRAMS[number]);
+
+  const handlePaymentPathChange = useCallback((value: string) => {
+    onChange("paymentPath", value);
+    onChange("hasAssistance", value === "voucher" ? "yes" : "no");
+    if (value !== "voucher") {
+      onChange("assistProgram", "");
+      onChange("otherProgramName", "");
+      onChange("voucherBedrooms", "");
+      onChange("voucherNumber", "");
+      onChange("voucherExpDate", "");
+      onChange("isTransferring", "");
+    }
+    if (value !== "out-of-pocket") {
+      onChange("monthlyIncome", "");
+    }
+    if (value !== "other") {
+      onChange("pathOtherNotes", "");
+    }
+  }, [onChange]);
 
   return (
     <div className="flex flex-col gap-0">
-      <FormSection heading="Rental Assistance">
-        <FormField name="hasAssistance" label="Do you receive rental assistance?" required error={errors.hasAssistance}>
-          <YesNoToggle
-            name="hasAssistance"
-            value={data.hasAssistance}
-            onChange={(v) => onChange("hasAssistance", v)}
-            error={!!errors.hasAssistance}
+      <FormSection
+        heading="How will you pay rent?"
+        description="Choose the option that best describes your situation."
+      >
+        <FormField name="paymentPath" label="Payment Method" required error={errors.paymentPath}>
+          <PillSelect
+            name="paymentPath"
+            value={data.paymentPath}
+            onChange={handlePaymentPathChange}
+            options={PAYMENT_PATH_OPTIONS}
+            columns={3}
+            error={!!errors.paymentPath}
           />
         </FormField>
 
-        <ConditionalBlock show={data.hasAssistance === "yes"}>
+        <ConditionalBlock show={isVoucher}>
           <FormField name="assistProgram" label="Assistance Program" required error={errors.assistProgram}>
             <PillSelect
               name="assistProgram"
@@ -639,25 +683,26 @@ function Step2Assistance({ data, onChange, errors }: StepProps) {
             />
           </FormField>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <FormField name="voucherNumber" label="Voucher / Case Number" required error={errors.voucherNumber}>
+              <FormInput
+                value={data.voucherNumber}
+                onChange={(e) => onChange("voucherNumber", sanitizeVoucherCaseNumber(e.target.value))}
+                maxLength={20}
+                placeholder="e.g. 14089043"
+              />
+            </FormField>
+            <FormField name="voucherExpDate" label="Voucher / Case Expiration" required error={errors.voucherExpDate}>
+              <FormInput
+                type="date"
+                value={data.voucherExpDate}
+                onChange={(e) => onChange("voucherExpDate", e.target.value)}
+                min={(() => { const t = new Date(); t.setDate(t.getDate() + 1); return t.toISOString().split("T")[0]; })()}
+              />
+            </FormField>
+          </div>
+
           <ConditionalBlock show={isSection8}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <FormField name="voucherNumber" label="Voucher/Case Number" required error={errors.voucherNumber}>
-                <FormInput
-                  value={data.voucherNumber}
-                  onChange={(e) => onChange("voucherNumber", sanitizeVoucherCaseNumber(e.target.value))}
-                  maxLength={20}
-                  placeholder="e.g. 14089043"
-                />
-              </FormField>
-              <FormField name="voucherExpDate" label="Voucher Expiration" required error={errors.voucherExpDate}>
-                <FormInput
-                  type="date"
-                  value={data.voucherExpDate}
-                  onChange={(e) => onChange("voucherExpDate", e.target.value)}
-                  min={(() => { const t = new Date(); t.setDate(t.getDate() + 1); return t.toISOString().split("T")[0]; })()}
-                />
-              </FormField>
-            </div>
             <FormField name="isTransferring" label="Are you transferring from another unit?" required error={errors.isTransferring}>
               <YesNoToggle
                 name="isTransferring"
@@ -667,13 +712,37 @@ function Step2Assistance({ data, onChange, errors }: StepProps) {
               />
             </FormField>
           </ConditionalBlock>
+        </ConditionalBlock>
 
-          <FormField name="cashAssistActive" label="Do you have active Cash Assistance?" required error={errors.cashAssistActive}>
-            <YesNoToggle
-              name="cashAssistActive"
-              value={data.cashAssistActive}
-              onChange={(v) => onChange("cashAssistActive", v)}
-              error={!!errors.cashAssistActive}
+        <ConditionalBlock show={isOutOfPocket}>
+          <FormField
+            name="monthlyIncome"
+            label="Monthly Take-Home Income"
+            required
+            error={errors.monthlyIncome}
+          >
+            <FormInput
+              prefix="$"
+              value={data.monthlyIncome}
+              onChange={(e) => onChange("monthlyIncome", e.target.value.replace(/[^\d.]/g, ""))}
+              inputMode="decimal"
+              placeholder="0.00"
+            />
+          </FormField>
+        </ConditionalBlock>
+
+        <ConditionalBlock show={isOther}>
+          <FormField
+            name="pathOtherNotes"
+            label="Tell us about your situation"
+            required
+            error={errors.pathOtherNotes}
+          >
+            <FormInput
+              value={data.pathOtherNotes}
+              onChange={(e) => onChange("pathOtherNotes", e.target.value)}
+              placeholder="Briefly describe how you'll pay rent"
+              maxLength={500}
             />
           </FormField>
         </ConditionalBlock>
@@ -989,6 +1058,15 @@ function Step4Income({ data, onChange, errors }: StepProps) {
             />
           </FormField>
         </ConditionalBlock>
+
+        <FormField name="cashAssistActive" label="Do you have active Cash Assistance?" required error={errors.cashAssistActive}>
+          <YesNoToggle
+            name="cashAssistActive"
+            value={data.cashAssistActive}
+            onChange={(v) => onChange("cashAssistActive", v)}
+            error={!!errors.cashAssistActive}
+          />
+        </FormField>
       </FormSection>
 
       <FormSection
@@ -1185,6 +1263,23 @@ function Step6Auth({ data, onChange, errors }: StepProps) {
         {errors.disclosureAgreed && (
           <p className="text-xs text-error">{errors.disclosureAgreed}</p>
         )}
+      </FormSection>
+
+      <FormSection heading="Marketing Communications (Optional)" description="Stay in the loop on new listings, opportunities, and updates from Nyrell. You can opt out at any time.">
+        <label className="flex items-start gap-3 cursor-pointer min-h-[44px]">
+          <input
+            type="checkbox"
+            checked={data.marketingOptIn}
+            onChange={(e) => onChange("marketingOptIn", e.target.checked)}
+            className="mt-0.5 w-5 h-5 rounded accent-primary shrink-0"
+          />
+          <span className="text-sm text-text-primary">
+            I want to hear about new listings and future opportunities.
+            I understand I can unsubscribe by replying STOP to any text or
+            clicking unsubscribe in any email. Message and data rates may
+            apply for SMS.
+          </span>
+        </label>
       </FormSection>
 
       <FormSection heading="Electronic Signature" description="Your typed name serves as your electronic signature.">

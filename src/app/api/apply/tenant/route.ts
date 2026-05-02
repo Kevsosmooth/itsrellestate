@@ -10,10 +10,20 @@ import {
 } from "@/lib/google";
 import { createApplicationInvoice } from "@/lib/stripe";
 import { tenantSchema, sanitizeForStorage } from "@/lib/validation";
+import { upsertTenantContact } from "@/lib/contacts";
 
 export const runtime = "nodejs";
 
 const IDEMPOTENCY_KEY_RE = /^[a-zA-Z0-9_-]{8,128}$/;
+
+function pathLabelFor(value: string): string {
+  switch (value) {
+    case "voucher": return "Voucher / Subsidy";
+    case "out-of-pocket": return "Out of Pocket";
+    case "other": return "Other";
+    default: return "—";
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -60,7 +70,7 @@ export async function POST(request: Request) {
       .filter((o) => o.over18 === "yes" && o.name.trim())
       .map((o) => o.name.trim());
 
-    const { folderId, folderLink, uploadsFolderId, occupantFolderIds, alreadyExisted } =
+    const { folderId, folderLink, folderName, uploadsFolderId, occupantFolderIds, alreadyExisted } =
       await getOrCreateApplicantFolder(
         tenantFolderId,
         applicantName,
@@ -68,6 +78,12 @@ export async function POST(request: Request) {
         idempotencyKey,
         over18Names,
       );
+
+    // Stable application id matches the encoding the CMS uses to derive
+    // ids from Drive folder names. Used for contacts upsert below.
+    const applicationId = encodeURIComponent(
+      folderName.replace(/\s+/g, "_"),
+    );
 
     const dataForStorage = { ...body, submittedAt: timestamp };
     delete (dataForStorage as Record<string, unknown>).paymentConfirmed;
@@ -138,6 +154,12 @@ export async function POST(request: Request) {
         body.hasPets,
         `${body.signatureFirst} ${body.signatureLast}`,
         folderLink,
+        body.paymentPath,
+        body.monthlyIncome,
+        body.pathOtherNotes,
+        // BD: marketing-opt-in (yes/no). Default to "no" if undefined for
+        // back-compat with older client builds in flight.
+        (body as { marketingOptIn?: boolean }).marketingOptIn ? "yes" : "no",
       ]);
 
       await patchFolderProperties(folderId, {
@@ -148,9 +170,24 @@ export async function POST(request: Request) {
       folderProps.sheetRowNumber = String(rowNumber);
     }
 
+    // Mirror this submission into the CMS Contacts table. Idempotent via
+    // (source_type, source_id) — re-running won't duplicate. Failure is
+    // logged and swallowed so it can never break the form submit; the
+    // CMS backfill script handles missed rows.
+    void upsertTenantContact({
+      email: body.email,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      phone: body.cellPhone,
+      applicationId,
+      submittedAt: timestamp,
+      marketingOptIn:
+        (body as { marketingOptIn?: boolean }).marketingOptIn ?? false,
+    });
+
     if (!folderProps.invoiceCreated) {
       try {
-        const { invoiceId, invoiceUrl } = await createApplicationInvoice({
+        const { invoiceId } = await createApplicationInvoice({
           email: body.email,
           firstName: body.firstName,
           lastName: body.lastName,
@@ -161,7 +198,7 @@ export async function POST(request: Request) {
           await appendStripeColumnsToRow(
             "Tenant Applications",
             rowNumber,
-            invoiceUrl,
+            invoiceId,
           );
         }
         await patchFolderProperties(folderId, {
@@ -183,8 +220,10 @@ export async function POST(request: Request) {
           { label: "Phone", value: body.cellPhone },
           { label: "Email", value: body.email },
           { label: "Borough", value: body.preferredBorough },
-          { label: "Program", value: body.assistProgram || body.otherProgramName || "None" },
+          { label: "Path", value: pathLabelFor(body.paymentPath) },
+          { label: "Program", value: body.assistProgram || body.otherProgramName || "—" },
           { label: "Voucher Beds", value: body.voucherBedrooms },
+          { label: "Monthly Income", value: body.monthlyIncome ? `$${body.monthlyIncome}` : "" },
           { label: "From Shelter", value: body.fromShelter === "yes" ? "Yes" : "No" },
           { label: "Occupants", value: body.hasOccupants === "yes" ? body.occupantCount : "None" },
           { label: "Submitted", value: new Date(timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) },

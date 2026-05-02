@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tenant Application Preview - Kelly Coppola</title>
+<style>
+  /* ---------- Print-first layout (US Letter, 0.6in margins) ---------- */
+  @page {
+    size: Letter;
+    margin: 0.6in;
+  }
+
+  html, body {
+    background: #f0eee8;
+    margin: 0;
+    padding: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #1a1a1a;
+  }
+
+  .sheet {
+    width: 8.5in;
+    min-height: 11in;
+    padding: 0.6in;
+    margin: 24px auto;
+    background: #ffffff;
+    box-sizing: border-box;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  /* ---------- Header ---------- */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 14px;
+    margin-bottom: 22px;
+  }
+  .header .logo {
+    width: 180px;
+    height: auto;
+  }
+  .header .meta {
+    text-align: right;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 9.5pt;
+    color: #4a4a4a;
+    line-height: 1.5;
+  }
+  .header .meta strong {
+    color: #1a1a1a;
+  }
+
+  .title-block {
+    text-align: center;
+    margin-bottom: 26px;
+  }
+  .title-block h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 22pt;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: 0.5px;
+  }
+  .title-block .subtitle {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 9.5pt;
+    color: #4a4a4a;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 6px;
+  }
+
+  /* ---------- Sections ---------- */
+  .section {
+    margin-bottom: 22px;
+    page-break-inside: avoid;
+  }
+  .section h2 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 10pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin: 0 0 10px;
+    padding: 6px 10px;
+    background: #1a1a1a;
+    color: #ffffff;
+  }
+
+  /* ---------- Field grid ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 24px;
+  }
+  .grid.cols-1 {
+    grid-template-columns: 1fr;
+  }
+  .grid.cols-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0;
+    border-bottom: 1px dotted #c8c5be;
+  }
+  .field .label {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 8pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #6b6560;
+    margin-bottom: 2px;
+  }
+  .field .value {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 11.5pt;
+    color: #1a1a1a;
+    line-height: 1.35;
+    min-height: 16px;
+    word-break: break-word;
+  }
+  .field .value.empty {
+    color: #b3aea6;
+    font-style: italic;
+    font-size: 10pt;
+  }
+
+  /* ---------- Occupants table ---------- */
+  table.occupants {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 4px;
+  }
+  table.occupants th,
+  table.occupants td {
+    text-align: left;
+    padding: 6px 10px;
+    border: 1px solid #c8c5be;
+    font-size: 11pt;
+  }
+  table.occupants th {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #4a4a4a;
+    background: #f4f1ec;
+  }
+
+  /* ---------- Documents on file ---------- */
+  ul.docs {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    columns: 2;
+    column-gap: 24px;
+  }
+  ul.docs li {
+    font-size: 10.5pt;
+    line-height: 1.5;
+    padding: 2px 0;
+    break-inside: avoid;
+  }
+  ul.docs li::before {
+    content: "\2713";
+    color: #1a1a1a;
+    margin-right: 6px;
+  }
+
+  /* ---------- Signature block ---------- */
+  .signature {
+    margin-top: 28px;
+    padding-top: 14px;
+    border-top: 1px solid #1a1a1a;
+  }
+  .signature .signed-line {
+    display: flex;
+    align-items: flex-end;
+    gap: 24px;
+  }
+  .signature .signed-name {
+    flex: 1;
+    font-family: "Brush Script MT", "Lucida Handwriting", cursive;
+    font-size: 26pt;
+    color: #1a1a1a;
+    border-bottom: 1px solid #1a1a1a;
+    padding: 0 6px 4px;
+    line-height: 1.1;
+  }
+  .signature .signed-date {
+    width: 200px;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 11pt;
+    border-bottom: 1px solid #1a1a1a;
+    padding: 0 6px 4px;
+  }
+  .signature .label-row {
+    display: flex;
+    gap: 24px;
+    margin-top: 4px;
+  }
+  .signature .label-row .signed-label {
+    flex: 1;
+    text-align: center;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #6b6560;
+  }
+  .signature .label-row .date-label {
+    width: 200px;
+    text-align: center;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #6b6560;
+  }
+
+  .disclosure {
+    font-size: 9.5pt;
+    line-height: 1.5;
+    color: #4a4a4a;
+    margin-bottom: 14px;
+  }
+
+  /* ---------- Footer ---------- */
+  .footer {
+    margin-top: 30px;
+    padding-top: 10px;
+    border-top: 1px solid #c8c5be;
+    text-align: center;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 8.5pt;
+    color: #6b6560;
+    letter-spacing: 0.4px;
+  }
+
+  @media print {
+    html, body { background: #ffffff; }
+    .sheet { box-shadow: none; margin: 0; padding: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sheet">
+
+  <!-- HEADER -->
+  <div class="header">
+    <img class="logo" src="logo.png" alt="ItsRellEstate">
+    <div class="meta">
+      <div><strong>Submitted</strong> April 27, 2026</div>
+      <div><strong>Reference</strong> 1Y9z2m6b...KV0d</div>
+      <div><strong>Agent</strong> Nyrell Nunez, Lic. #10401396493</div>
+    </div>
+  </div>
+
+  <div class="title-block">
+    <h1>Tenant Application</h1>
+    <div class="subtitle">Subsidy Housing Placement</div>
+  </div>
+
+  <!-- PERSONAL INFO -->
+  <div class="section">
+    <h2>Personal Information</h2>
+    <div class="grid">
+      <div class="field"><div class="label">First Name</div><div class="value">Kelly</div></div>
+      <div class="field"><div class="label">Last Name</div><div class="value">Coppola</div></div>
+      <div class="field"><div class="label">Date of Birth</div><div class="value">January 9, 1988</div></div>
+      <div class="field"><div class="label">Phone</div><div class="value">(551) 800-9955</div></div>
+      <div class="field"><div class="label">Email</div><div class="value">kaycoppola64@gmail.com</div></div>
+      <div class="field"><div class="label">Preferred Borough</div><div class="value">Brooklyn</div></div>
+      <div class="field"><div class="label">Emergency Contact Name</div><div class="value empty">Not provided</div></div>
+      <div class="field"><div class="label">Emergency Contact Phone</div><div class="value empty">Not provided</div></div>
+    </div>
+  </div>
+
+  <!-- CURRENT ADDRESS -->
+  <div class="section">
+    <h2>Current Address</h2>
+    <div class="grid cols-1">
+      <div class="field"><div class="label">Street Address</div><div class="value">N/A</div></div>
+    </div>
+    <div class="grid cols-3">
+      <div class="field"><div class="label">City</div><div class="value">New York</div></div>
+      <div class="field"><div class="label">State</div><div class="value">New York</div></div>
+      <div class="field"><div class="label">ZIP</div><div class="value">10036</div></div>
+    </div>
+  </div>
+
+  <!-- RENTAL ASSISTANCE -->
+  <div class="section">
+    <h2>Rental Assistance</h2>
+    <div class="grid">
+      <div class="field"><div class="label">Receives Assistance</div><div class="value">Yes</div></div>
+      <div class="field"><div class="label">Program</div><div class="value">HCV (Section 8)</div></div>
+      <div class="field"><div class="label">Voucher Bedrooms</div><div class="value">1 Bed</div></div>
+      <div class="field"><div class="label">Voucher / Case Number</div><div class="value">14089043</div></div>
+      <div class="field"><div class="label">Voucher Expiration</div><div class="value">May 4, 2026</div></div>
+      <div class="field"><div class="label">Transferring</div><div class="value">No</div></div>
+      <div class="field"><div class="label">Active Cash Assistance</div><div class="value">Yes</div></div>
+      <div class="field"><div class="label">Currently in Shelter</div><div class="value">No</div></div>
+    </div>
+  </div>
+
+  <!-- APARTMENT VIEWING -->
+  <div class="section">
+    <h2>Apartment Viewing</h2>
+    <div class="grid">
+      <div class="field"><div class="label">Has Viewed Apartment</div><div class="value">Yes</div></div>
+      <div class="field"><div class="label">Preferred Viewing Date</div><div class="value empty">Not applicable</div></div>
+    </div>
+  </div>
+
+  <!-- LANDLORD -->
+  <div class="section">
+    <h2>Current Landlord</h2>
+    <div class="grid">
+      <div class="field"><div class="label">Landlord Name</div><div class="value">N/A</div></div>
+      <div class="field"><div class="label">Landlord Phone</div><div class="value">(551) 800-9955</div></div>
+      <div class="field"><div class="label">Landlord Email</div><div class="value empty">Not provided</div></div>
+      <div class="field"><div class="label">Credit Score Range</div><div class="value">600 - 649</div></div>
+    </div>
+  </div>
+
+  <!-- HOUSEHOLD -->
+  <div class="section">
+    <h2>Household</h2>
+    <div class="grid">
+      <div class="field"><div class="label">Additional Occupants</div><div class="value">No</div></div>
+      <div class="field"><div class="label">Occupant Count</div><div class="value">0</div></div>
+    </div>
+  </div>
+
+  <!-- EMPLOYMENT & INCOME -->
+  <div class="section">
+    <h2>Employment &amp; Income</h2>
+    <div class="grid">
+      <div class="field"><div class="label">Currently Employed</div><div class="value">No</div></div>
+      <div class="field"><div class="label">Filed Taxes Last Year</div><div class="value">No</div></div>
+      <div class="field"><div class="label">Veteran</div><div class="value">No</div></div>
+      <div class="field"><div class="label">Income Sources</div><div class="value">Food Stamps (SNAP), Cash Assistance</div></div>
+    </div>
+  </div>
+
+  <!-- HOUSING SPECIALIST -->
+  <div class="section">
+    <h2>Housing Specialist / Caseworker</h2>
+    <div class="grid">
+      <div class="field"><div class="label">Name</div><div class="value empty">Not provided</div></div>
+      <div class="field"><div class="label">Phone</div><div class="value empty">Not provided</div></div>
+      <div class="field"><div class="label">Email</div><div class="value empty">Not provided</div></div>
+    </div>
+  </div>
+
+  <!-- LIFESTYLE -->
+  <div class="section">
+    <h2>Lifestyle</h2>
+    <div class="grid">
+      <div class="field"><div class="label">Smoker</div><div class="value">No</div></div>
+      <div class="field"><div class="label">Has Pets</div><div class="value">Yes</div></div>
+    </div>
+  </div>
+
+  <!-- DOCUMENTS ON FILE -->
+  <div class="section">
+    <h2>Documents on File</h2>
+    <ul class="docs">
+      <li>Photo ID</li>
+      <li>Social Security Card</li>
+      <li>Voucher Cover Letter</li>
+      <li>PIN Letter</li>
+      <li>Cash Assistance Budget Letter</li>
+      <li>Food Stamps (SNAP) Proof</li>
+    </ul>
+  </div>
+
+  <!-- DISCLOSURE & SIGNATURE -->
+  <div class="section">
+    <h2>Authorization &amp; Signature</h2>
+    <p class="disclosure">
+      I, the undersigned applicant, hereby authorize ItsRellEstate and Nyrell Nunez to verify
+      any and all information provided in this application, including but not limited to
+      employment history, rental history, credit history, and public records. I understand that
+      providing false or misleading information may result in denial of my application. I
+      acknowledge that a non-refundable $20 processing fee is required and that submission of
+      this application does not guarantee housing placement.
+    </p>
+
+    <div class="signature">
+      <div class="signed-line">
+        <div class="signed-name">Kelly Coppola</div>
+        <div class="signed-date">April 27, 2026</div>
+      </div>
+      <div class="label-row">
+        <div class="signed-label">Applicant Signature</div>
+        <div class="date-label">Date</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    ItsRellEstate &middot; Nyrell Nunez, Licensed NYS Real Estate Agent &middot; Lic. #10401396493 &middot; itsrellestate.com
+  </div>
+
+</div>
+
+</body>
+</html>

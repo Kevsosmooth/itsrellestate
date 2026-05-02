@@ -31,25 +31,33 @@ export function validateTenantStep1(data: TenantFormData): ValidationErrors {
 
 export function validateTenantStep2(data: TenantFormData): ValidationErrors {
   const e: Record<string, string | null> = {};
-  e.hasAssistance = v.required(data.hasAssistance, "Rental assistance");
+  e.paymentPath = v.required(data.paymentPath, "Payment method");
   e.fromShelter = v.required(data.fromShelter, "Shelter status");
 
-  if (data.hasAssistance === "yes") {
+  if (data.paymentPath === "voucher") {
     e.assistProgram = v.required(data.assistProgram, "Assistance program");
     e.voucherBedrooms = v.required(data.voucherBedrooms, "Voucher bedrooms");
-    e.cashAssistActive = v.required(data.cashAssistActive, "Cash assistance");
+    e.voucherNumber = v.required(data.voucherNumber, "Voucher / case number") ??
+      v.voucherCaseNumber(data.voucherNumber);
+    e.voucherExpDate = v.required(data.voucherExpDate, "Voucher expiration") ??
+      v.voucherExpiration(data.voucherExpDate);
 
     if (data.assistProgram === "Other") {
       e.otherProgramName = v.required(data.otherProgramName, "Program name");
     }
 
     if (SECTION_8_PROGRAMS.includes(data.assistProgram as typeof SECTION_8_PROGRAMS[number])) {
-      e.voucherNumber = v.required(data.voucherNumber, "Voucher number") ??
-        v.voucherCaseNumber(data.voucherNumber);
-      e.voucherExpDate = v.required(data.voucherExpDate, "Voucher expiration") ??
-        v.voucherExpiration(data.voucherExpDate);
       e.isTransferring = v.required(data.isTransferring, "Transfer status");
     }
+  }
+
+  if (data.paymentPath === "out-of-pocket") {
+    e.monthlyIncome = v.required(data.monthlyIncome, "Monthly income") ??
+      v.numeric(data.monthlyIncome, "Monthly income");
+  }
+
+  if (data.paymentPath === "other") {
+    e.pathOtherNotes = v.required(data.pathOtherNotes, "Details");
   }
 
   if (data.fromShelter === "no") {
@@ -99,6 +107,7 @@ export function validateTenantStep4(data: TenantFormData): ValidationErrors {
   if (data.incomeSources.includes("other") && !data.otherIncomeSource.trim()) {
     e.otherIncomeSource = "Specify the other income source";
   }
+  e.cashAssistActive = v.required(data.cashAssistActive, "Cash assistance");
   if (data.fromShelter === "yes") {
     e.housingSpecName = v.required(data.housingSpecName, "Housing specialist name");
     e.housingSpecPhone = v.required(data.housingSpecPhone, "Housing specialist phone") ?? v.phone(data.housingSpecPhone);

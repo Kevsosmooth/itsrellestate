@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
 import { useCallback, useRef } from "react";
 
 interface YesNoToggleProps {
@@ -47,20 +46,25 @@ export function YesNoToggle({
     { key: "no", label: labels[1] },
   ];
 
+  const isErrored = !!error && value === "";
+
   return (
     <div
       ref={containerRef}
       role="radiogroup"
       aria-label={name}
-      className={cn(
-        "inline-flex rounded-full border p-1 gap-1 relative",
-        error && value === "" ? "border-error/60" : "border-border",
-        "bg-card",
-        className,
-      )}
+      className={cn("inline-flex flex-wrap gap-2", className)}
     >
       {options.map((opt, idx) => {
         const isSelected = value === opt.key;
+        const selectedTone =
+          opt.key === "yes"
+            ? "bg-primary border-primary text-primary-foreground"
+            : "bg-secondary border-secondary text-secondary-foreground";
+        const idleTone = isErrored
+          ? "bg-card border-error/60 text-text-secondary hover:text-text-primary hover:border-error"
+          : "bg-card border-border text-text-secondary hover:text-text-primary hover:border-text-secondary/40";
+
         return (
           <button
             key={opt.key}
@@ -71,27 +75,14 @@ export function YesNoToggle({
             onClick={() => onChange(opt.key)}
             onKeyDown={(e) => handleKeyDown(e, opt.key)}
             className={cn(
-              "relative z-10 flex items-center justify-center min-h-[40px] px-4",
-              "rounded-full text-sm font-medium transition-colors duration-200 cursor-pointer",
+              "inline-flex items-center justify-center min-h-[44px] min-w-[88px] px-5",
+              "rounded-full border text-sm font-medium cursor-pointer",
+              "transition-colors duration-200",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
-              isSelected
-                ? opt.key === "yes"
-                  ? "text-primary-foreground"
-                  : "text-secondary-foreground"
-                : "text-text-secondary hover:text-text-primary",
+              isSelected ? selectedTone : idleTone,
             )}
           >
-            {isSelected && (
-              <motion.div
-                layoutId={`toggle-bg-${name}`}
-                className={cn(
-                  "absolute inset-0 rounded-full shadow-sm",
-                  opt.key === "yes" ? "bg-primary" : "bg-secondary",
-                )}
-                transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
-              />
-            )}
-            <span className="relative z-10">{opt.label}</span>
+            {opt.label}
           </button>
         );
       })}

@@ -166,7 +166,9 @@ These are the canonical color names. Use only these in components:
 
 ## Security
 
-- Never read, log, commit, or display `.env` files, credentials, or secrets
+- Never read, log, commit, or display `.env` files, credentials, or secrets unless the project owner (Kevin) explicitly grants permission in the conversation
+- When the owner explicitly shows or pastes a credential, treat it as in-scope for this project: read it, use it, and write it to the appropriate `.env` file -- but never echo it back in chat, log it, or include it in commits
+- If a credential is pasted in chat, warn the owner once that it should be rotated and moved to `.env.local`, then proceed
 - Secrets are server-side only; never shipped in client bundles
 - Validate form input on both client and server
 - Apply CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy headers
@@ -197,6 +199,10 @@ No AI co-author attribution. No emojis.
 
 - Never kill, stop, or terminate processes running on any port unless explicitly asked.
 - When starting a dev server, use an alternative port if the default is already in use.
+
+## Sibling Project: ItsRellEstate CMS
+
+The CMS for `cms.itsrellestate.com` lives in a separate Next.js project at `/volume1/playground/itsrellestate-cms/`. It has its own `CLAUDE.md` with looser rules (autonomous mode, dev-server restart permission). When working in this public-site project, do not modify files in the CMS project unless explicitly asked. The two projects share the same Neon database and Better Auth instance.
 
 ## File Organization
 
