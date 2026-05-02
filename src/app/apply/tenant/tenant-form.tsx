@@ -717,7 +717,8 @@ function Step2Assistance({ data, onChange, errors }: StepProps) {
         <ConditionalBlock show={isOutOfPocket}>
           <FormField
             name="monthlyIncome"
-            label="Monthly Take-Home Income"
+            label="Total Monthly Take-Home (from all sources)"
+            description="Include wages, benefits, and any other money you bring in each month."
             required
             error={errors.monthlyIncome}
           >

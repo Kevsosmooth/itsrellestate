@@ -224,7 +224,7 @@ export async function POST(request: Request) {
           { label: "Path", value: pathLabelFor(body.paymentPath) },
           { label: "Program", value: body.assistProgram || body.otherProgramName || "—" },
           { label: "Voucher Beds", value: body.voucherBedrooms },
-          { label: "Monthly Income", value: body.monthlyIncome ? `$${body.monthlyIncome}` : "" },
+          { label: "Total Monthly Take-Home", value: body.monthlyIncome ? `$${body.monthlyIncome}` : "" },
           { label: "From Shelter", value: body.fromShelter === "yes" ? "Yes" : "No" },
           { label: "Occupants", value: body.hasOccupants === "yes" ? body.occupantCount : "None" },
           { label: "Submitted", value: new Date(timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) },
