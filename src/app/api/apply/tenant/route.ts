@@ -11,7 +11,10 @@ import {
 import { createApplicationInvoice } from "@/lib/stripe";
 import { tenantSchema, sanitizeForStorage } from "@/lib/validation";
 import { upsertTenantContact } from "@/lib/contacts";
-import { upsertTenantApplicationPayload } from "@/lib/applications-neon";
+import {
+  recordApplicationInvoice,
+  upsertTenantApplicationPayload,
+} from "@/lib/applications-neon";
 
 export const runtime = "nodejs";
 
@@ -225,6 +228,10 @@ export async function POST(request: Request) {
             invoiceId,
           );
         }
+        // Stamp the invoice id onto the Neon row so the Stripe webhook
+        // can later flip status by looking up application by invoice id.
+        // Awaited-but-error-swallowing — Sheets remains the safety net.
+        await recordApplicationInvoice(applicationId, invoiceId);
         await patchFolderProperties(folderId, {
           invoiceCreated: "1",
           invoiceId,

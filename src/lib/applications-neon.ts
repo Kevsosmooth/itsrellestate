@@ -158,3 +158,102 @@ export async function upsertLandlordApplicationPayload(
 ): Promise<void> {
   await upsertApplicationPayload("landlord", input);
 }
+
+/**
+ * Stamp the just-created Stripe invoice id onto the matching applications
+ * + application_payloads rows in Neon. Called from the public-site invoice
+ * creation flow so the webhook can later look up the application by
+ * invoice id without going back to Sheets.
+ *
+ * Errors are swallowed and logged. Same dual-write soak-window contract:
+ * the Sheets stripe-id column remains the canonical record until we cut
+ * Sheets out entirely.
+ */
+export async function recordApplicationInvoice(
+  applicationId: string,
+  invoiceId: string,
+): Promise<void> {
+  try {
+    const sql = getSql();
+    await sql.transaction([
+      sql`
+        update applications
+           set stripe_invoice_id = ${invoiceId}::text,
+               updated_at = now()
+         where id = ${applicationId}::text
+      `,
+      sql`
+        update application_payloads
+           set stripe_invoice_id = ${invoiceId}::text,
+               last_synced_at = now()
+         where application_id = ${applicationId}::text
+      `,
+    ]);
+  } catch (err) {
+    console.error(
+      `[applications-neon] recordApplicationInvoice ${applicationId}/${invoiceId} failed:`,
+      err,
+    );
+  }
+}
+
+/**
+ * Webhook handler: flip an application's status to the given target on a
+ * Stripe lifecycle event (paid / refunded / voided). Looks the application
+ * up by stripe_invoice_id.
+ *
+ * Status update is conditional:
+ *   - Only flips from "unpaid" → target. An agent may have already set
+ *     "waived" or "refunded"; the webhook must never undo that.
+ *   - "refunded" overrides "paid" — refund events trump prior paid events.
+ *
+ * Mirrors the same status into application_payloads (best-effort) for the
+ * read path. All work runs inside one HTTP transaction.
+ *
+ * Returns true when a row was actually updated, false when no matching
+ * application was found or the status was preserved.
+ */
+export async function markApplicationByInvoiceId(
+  invoiceId: string,
+  target: "paid" | "refunded",
+): Promise<boolean> {
+  try {
+    const sql = getSql();
+    const allowedFromForPaid = ["unpaid"] as const;
+    const allowedFromForRefunded = ["unpaid", "paid"] as const;
+
+    const allowedFrom =
+      target === "paid" ? allowedFromForPaid : allowedFromForRefunded;
+
+    const rows = (await sql`
+      update applications
+         set status = ${target}::text,
+             payment_method = case
+               when applications.payment_method is null and ${target}::text = 'paid'
+                 then 'stripe'
+               else applications.payment_method
+             end,
+             updated_at = now()
+       where stripe_invoice_id = ${invoiceId}::text
+         and status = any(${allowedFrom as unknown as string[]}::text[])
+       returning id
+    `) as { id: string }[];
+
+    if (rows.length === 0) return false;
+
+    const applicationId = rows[0].id;
+    await sql`
+      update application_payloads
+         set status = ${target}::text,
+             last_synced_at = now()
+       where application_id = ${applicationId}::text
+    `;
+    return true;
+  } catch (err) {
+    console.error(
+      `[applications-neon] markApplicationByInvoiceId ${invoiceId}→${target} failed:`,
+      err,
+    );
+    return false;
+  }
+}
