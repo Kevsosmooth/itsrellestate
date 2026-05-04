@@ -37,7 +37,11 @@ export const runtime = "nodejs";
 
 type StatusTarget = "paid" | "refunded";
 
-async function syncBoth(invoiceId: string, target: StatusTarget): Promise<void> {
+async function syncBoth(
+  invoiceId: string,
+  target: StatusTarget,
+  amountPaidCents?: number | null,
+): Promise<void> {
   // Sheets first — historical writer of truth during dual-write.
   try {
     await updateSheetRowByInvoiceId("Tenant Applications", invoiceId, {
@@ -51,9 +55,15 @@ async function syncBoth(invoiceId: string, target: StatusTarget): Promise<void> 
     );
   }
 
-  // Neon mirror — what the CMS reads.
+  // Neon mirror — what the CMS reads. amount_cents matters because the
+  // dashboard's "Revenue this week" SUMs amount_cents over paid rows;
+  // skipping it leaves the column NULL and the row contributes $0.
   try {
-    const updated = await markApplicationByInvoiceId(invoiceId, target);
+    const updated = await markApplicationByInvoiceId(
+      invoiceId,
+      target,
+      amountPaidCents ?? null,
+    );
     if (!updated) {
       console.warn(
         `[stripe-webhook] no Neon application matched invoice ${invoiceId} (target=${target}) — may need backfill`,
@@ -91,14 +101,22 @@ export async function POST(req: NextRequest) {
 
   switch (event.type) {
     case "invoice.paid": {
-      const invoice = event.data.object as { id?: string };
+      const invoice = event.data.object as {
+        id?: string;
+        amount_paid?: number | null;
+        amount_due?: number | null;
+      };
       if (!invoice.id) {
         console.warn(
           "[stripe-webhook] invoice.paid event missing invoice id, skipping",
         );
         break;
       }
-      await syncBoth(invoice.id, "paid");
+      // Prefer amount_paid (what was actually collected); fall back to
+      // amount_due for the rare case where Stripe reports paid without
+      // populating amount_paid yet.
+      const amountCents = invoice.amount_paid ?? invoice.amount_due ?? null;
+      await syncBoth(invoice.id, "paid", amountCents);
       break;
     }
     case "invoice.voided": {

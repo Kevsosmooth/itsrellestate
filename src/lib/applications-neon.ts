@@ -207,6 +207,15 @@ export async function recordApplicationInvoice(
  *     "waived" or "refunded"; the webhook must never undo that.
  *   - "refunded" overrides "paid" — refund events trump prior paid events.
  *
+ * `amountPaidCents` (paid events only): when Stripe tells us the actual
+ * paid amount, stamp it on `amount_cents`. The dashboard "Revenue this
+ * week" SUM relies on this column being populated; without it a paid
+ * application contributes $0 to the rollup. We write it only when the
+ * column is currently NULL so a manual override via the CMS isn't
+ * clobbered by a later webhook redelivery. Refund events leave the
+ * historical paid amount intact (so we can still tell what was once
+ * collected before the refund).
+ *
  * Mirrors the same status into application_payloads (best-effort) for the
  * read path. All work runs inside one HTTP transaction.
  *
@@ -216,6 +225,7 @@ export async function recordApplicationInvoice(
 export async function markApplicationByInvoiceId(
   invoiceId: string,
   target: "paid" | "refunded",
+  amountPaidCents?: number | null,
 ): Promise<boolean> {
   try {
     const sql = getSql();
@@ -225,6 +235,18 @@ export async function markApplicationByInvoiceId(
     const allowedFrom =
       target === "paid" ? allowedFromForPaid : allowedFromForRefunded;
 
+    // Only stamp amount_cents on paid events with a positive integer.
+    // Stripe occasionally emits 0 on test invoices; treat that as
+    // "don't write" since 0 in the SUM isn't useful and could mask a
+    // real $0 (waived-by-Stripe) edge case we'd want to investigate.
+    const amountToWrite =
+      target === "paid" &&
+      typeof amountPaidCents === "number" &&
+      Number.isFinite(amountPaidCents) &&
+      amountPaidCents > 0
+        ? Math.round(amountPaidCents)
+        : null;
+
     const rows = (await sql`
       update applications
          set status = ${target}::text,
@@ -232,6 +254,12 @@ export async function markApplicationByInvoiceId(
                when applications.payment_method is null and ${target}::text = 'paid'
                  then 'stripe'
                else applications.payment_method
+             end,
+             amount_cents = case
+               when ${amountToWrite}::int is not null
+                    and applications.amount_cents is null
+                 then ${amountToWrite}::int
+               else applications.amount_cents
              end,
              updated_at = now()
        where stripe_invoice_id = ${invoiceId}::text
