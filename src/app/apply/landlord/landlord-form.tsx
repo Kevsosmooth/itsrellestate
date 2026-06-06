@@ -13,6 +13,7 @@ import { FormSuccess } from "@/components/forms/form-success";
 import { FileUpload, type StagedFile } from "@/components/forms/file-upload";
 import type { FormStepDef, LandlordFormData, RentalUnit } from "@/lib/form-types";
 import { createEmptyLandlordForm } from "@/lib/form-types";
+import { uploadFileWithRetry } from "@/lib/upload-file";
 import {
   validateLandlordStep1,
   validateLandlordStep2,
@@ -107,11 +108,7 @@ async function uploadStagedFiles(
     const formData = new FormData();
     formData.append("file", staged.file);
     formData.append("folderId", uploadsFolderId);
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error(body?.error || `Upload failed for ${staged.file.name}`);
-    }
+    await uploadFileWithRetry(formData, staged.file.name);
   }
 }
 

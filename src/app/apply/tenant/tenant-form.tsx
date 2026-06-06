@@ -14,6 +14,7 @@ import { FormSuccess } from "@/components/forms/form-success";
 import { FileUpload } from "@/components/forms/file-upload";
 import type { TenantFormData, Occupant, FormStepDef, StagedAttachments } from "@/lib/form-types";
 import { createEmptyTenantForm, createEmptyStagedAttachments } from "@/lib/form-types";
+import { uploadFileWithRetry } from "@/lib/upload-file";
 import { formatPhone, formatZip, formatDOB } from "@/lib/form-formatters";
 import { sanitizeVoucherCaseNumber } from "@/lib/form-validators";
 import { isDev, devTenantData, devTenantDataCash, makeFakeStagedFile } from "@/lib/dev-autofill";
@@ -217,11 +218,7 @@ async function uploadAllStagedFiles(
     const formData = new FormData();
     formData.append("file", renamedFile);
     formData.append("folderId", targetFolderId);
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error(body?.error || `Upload failed for ${staged.fileName}`);
-    }
+    await uploadFileWithRetry(formData, staged.fileName);
   }
 }
 
