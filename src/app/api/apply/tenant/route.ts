@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import {
   getOrCreateApplicantFolder,
   saveApplicationJSON,
@@ -237,6 +238,9 @@ export async function POST(request: Request) {
           invoiceId,
         });
       } catch (err) {
+        Sentry.captureException(err, {
+          tags: { route: "apply/tenant", step: "stripe-invoice" },
+        });
         console.error("[stripe-invoice] failed to create invoice:", err);
       }
     }
@@ -261,7 +265,12 @@ export async function POST(request: Request) {
         ],
       })
         .then(() => patchFolderProperties(folderId, { notificationSent: "1" }))
-        .catch((err) => console.error("Notification email failed:", err));
+        .catch((err) => {
+          Sentry.captureException(err, {
+            tags: { route: "apply/tenant", step: "notification-email" },
+          });
+          console.error("Notification email failed:", err);
+        });
     }
 
     if (!folderProps.submittedAt) {
@@ -276,6 +285,7 @@ export async function POST(request: Request) {
       occupantFolderIds,
     });
   } catch (err) {
+    Sentry.captureException(err, { tags: { route: "apply/tenant", step: "submit" } });
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Tenant submission error:", message);
     return NextResponse.json(

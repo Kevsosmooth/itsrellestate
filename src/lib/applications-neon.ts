@@ -20,6 +20,7 @@
  */
 
 import { neon } from "@neondatabase/serverless";
+import * as Sentry from "@sentry/nextjs";
 
 const WORKSPACE_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -140,6 +141,9 @@ async function upsertApplicationPayload(
     ]);
   } catch (err) {
     // Never block the form submit. The CMS backfill is the safety net.
+    Sentry.captureException(err, {
+      tags: { lib: "applications-neon", fn: "upsertApplicationPayload" },
+    });
     console.error(
       `[applications-neon] upsert ${type} application failed:`,
       err,
@@ -190,6 +194,9 @@ export async function recordApplicationInvoice(
       `,
     ]);
   } catch (err) {
+    Sentry.captureException(err, {
+      tags: { lib: "applications-neon", fn: "recordApplicationInvoice" },
+    });
     console.error(
       `[applications-neon] recordApplicationInvoice ${applicationId}/${invoiceId} failed:`,
       err,
@@ -278,6 +285,9 @@ export async function markApplicationByInvoiceId(
     `;
     return true;
   } catch (err) {
+    Sentry.captureException(err, {
+      tags: { lib: "applications-neon", fn: "markApplicationByInvoiceId" },
+    });
     console.error(
       `[applications-neon] markApplicationByInvoiceId ${invoiceId}→${target} failed:`,
       err,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import {
   getOrCreateApplicantFolder,
   saveApplicationJSON,
@@ -193,7 +194,12 @@ export async function POST(request: Request) {
         ],
       })
         .then(() => patchFolderProperties(folderId, { notificationSent: "1" }))
-        .catch((err) => console.error("Notification email failed:", err));
+        .catch((err) => {
+          Sentry.captureException(err, {
+            tags: { route: "apply/landlord", step: "notification-email" },
+          });
+          console.error("Notification email failed:", err);
+        });
     }
 
     if (!folderProps.submittedAt) {
@@ -207,6 +213,7 @@ export async function POST(request: Request) {
       uploadsFolderId,
     });
   } catch (err) {
+    Sentry.captureException(err, { tags: { route: "apply/landlord", step: "submit" } });
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Landlord submission error:", message);
     return NextResponse.json(
