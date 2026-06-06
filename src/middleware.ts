@@ -8,16 +8,22 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
+// timeout: if the Redis round-trip exceeds this, the limiter resolves as
+// success (fail open) instead of hanging. Paired with the try/catch in the
+// handler below, this guarantees a rate-limiter outage can never take down
+// the application form.
 const formLimiter = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(5, "60 s"),
   prefix: "itsrellestate:form",
+  timeout: 3000,
 });
 
 const uploadLimiter = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(20, "60 s"),
   prefix: "itsrellestate:upload",
+  timeout: 3000,
 });
 
 function getIP(request: NextRequest): string {
@@ -36,17 +42,30 @@ export async function middleware(request: NextRequest) {
   const ip = getIP(request);
   const isUpload = pathname === "/api/upload";
   const limiter = isUpload ? uploadLimiter : formLimiter;
-  const { success, remaining, reset } = await limiter.limit(ip);
 
-  if (!success) {
+  // Fail OPEN: if the rate-limit check throws (Redis unreachable, over its
+  // request quota, or paused), let the request through instead of returning
+  // a 500 to every applicant. A shared Upstash DB hit its request cap on
+  // 2026-06-06 and silently broke every submission for weeks. The limiter is
+  // a protective layer; it must degrade gracefully, never become a single
+  // point of total failure for the application form.
+  let result: Awaited<ReturnType<typeof limiter.limit>>;
+  try {
+    result = await limiter.limit(ip);
+  } catch (err) {
+    console.error("[middleware] rate-limit check failed; allowing request:", err);
+    return NextResponse.next();
+  }
+
+  if (!result.success) {
     return NextResponse.json(
       { error: "Too many requests. Please try again later." },
       {
         status: 429,
         headers: {
-          "X-RateLimit-Remaining": remaining.toString(),
-          "X-RateLimit-Reset": reset.toString(),
-          "Retry-After": Math.ceil((reset - Date.now()) / 1000).toString(),
+          "X-RateLimit-Remaining": result.remaining.toString(),
+          "X-RateLimit-Reset": result.reset.toString(),
+          "Retry-After": Math.ceil((result.reset - Date.now()) / 1000).toString(),
         },
       },
     );
