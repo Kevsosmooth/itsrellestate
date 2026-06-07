@@ -202,7 +202,7 @@ export function FileUpload({
       </div>
 
       {sizeError && (
-        <p className="text-xs text-error mt-2">{sizeError}</p>
+        <p role="alert" aria-live="assertive" className="text-xs text-error mt-2">{sizeError}</p>
       )}
 
       {stagedFiles.map((file, index) => {

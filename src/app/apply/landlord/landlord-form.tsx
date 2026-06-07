@@ -162,6 +162,7 @@ export function LandlordForm() {
   const [phase, setPhase] = useState<SubmissionPhase>("idle");
   const [submitProgress, setSubmitProgress] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [applicationId, setApplicationId] = useState<string | null>(null);
 
   const submitLockRef = useRef(false);
@@ -188,13 +189,18 @@ export function LandlordForm() {
   const runUploads = useCallback(async (appId: string): Promise<UploadRunResult> => {
     if (stagedFiles.length === 0) return { failedNames: [] };
     setPhase("uploading-files");
-    return uploadStagedFiles(
+    setUploadProgress(0);
+    const result = await uploadStagedFiles(
       stagedFiles,
       appId,
       fileStatusesRef.current,
-      (current, total, percent) =>
-        setSubmitProgress(`Uploading ${current} of ${total} files... ${percent}%`),
+      (current, total, percent) => {
+        setSubmitProgress(`Uploading ${current} of ${total} files... ${percent}%`);
+        setUploadProgress((current - 1 + percent / 100) / total);
+      },
     );
+    setUploadProgress(1);
+    return result;
   }, [stagedFiles]);
 
   const handleSubmit = useCallback(async () => {
@@ -286,6 +292,7 @@ export function LandlordForm() {
       submitLabel={phase === "upload-failed" ? "Retry Upload" : undefined}
       submitProgress={submitProgress}
       submitError={submitError}
+      uploadProgress={uploadProgress}
       storageKey={LANDLORD_STORAGE_KEY}
       title="Landlord Application"
       devAutofill={isDev ? {

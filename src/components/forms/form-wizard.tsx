@@ -18,6 +18,7 @@ interface FormWizardProps {
   submitLabel?: string;
   submitProgress?: string;
   submitError?: string;
+  uploadProgress?: number;
   storageKey: string;
   title: string;
   className?: string;
@@ -57,6 +58,7 @@ export function FormWizard({
   submitLabel,
   submitProgress,
   submitError,
+  uploadProgress,
   storageKey,
   title,
   className,
@@ -390,9 +392,27 @@ export function FormWizard({
             )}
           >
             {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {submitProgress || "Submitting..."}
+              <span className="flex flex-col items-center gap-1.5 w-full">
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {submitProgress || "Submitting..."}
+                </span>
+                {uploadProgress !== undefined && uploadProgress > 0 && (
+                  <span className="w-full">
+                    <span
+                      className="block w-full h-2 rounded-full bg-primary/20 overflow-hidden"
+                    >
+                      <span
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(uploadProgress * 100)}
+                        className="block h-2 rounded-full bg-primary/80 transition-[width] duration-300"
+                        style={{ width: `${Math.round(uploadProgress * 100)}%` }}
+                      />
+                    </span>
+                  </span>
+                )}
               </span>
             ) : (
               submitLabel || "Submit Application"

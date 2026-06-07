@@ -265,6 +265,7 @@ export function TenantForm() {
   const [phase, setPhase] = useState<SubmissionPhase>("idle");
   const [submitProgress, setSubmitProgress] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [applicationId, setApplicationId] = useState<string | null>(null);
 
   const submitLockRef = useRef(false);
@@ -286,13 +287,18 @@ export function TenantForm() {
     const totalFiles = Object.values(stagedAttachments).flat().length;
     if (totalFiles === 0) return { failedNames: [] };
     setPhase("uploading-files");
-    return uploadAllStagedFiles(
+    setUploadProgress(0);
+    const result = await uploadAllStagedFiles(
       stagedAttachments,
       appId,
       fileStatusesRef.current,
-      (current, total, percent) =>
-        setSubmitProgress(`Uploading ${current} of ${total} files... ${percent}%`),
+      (current, total, percent) => {
+        setSubmitProgress(`Uploading ${current} of ${total} files... ${percent}%`);
+        setUploadProgress((current - 1 + percent / 100) / total);
+      },
     );
+    setUploadProgress(1);
+    return result;
   }, [stagedAttachments]);
 
   const handleSubmit = useCallback(async () => {
@@ -388,6 +394,7 @@ export function TenantForm() {
       submitLabel={phase === "upload-failed" ? "Retry Upload" : undefined}
       submitProgress={submitProgress}
       submitError={submitError}
+      uploadProgress={uploadProgress}
       storageKey={TENANT_STORAGE_KEY}
       title="Tenant Application"
       devAutofill={isDev ? [
