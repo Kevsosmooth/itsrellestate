@@ -2,34 +2,9 @@ import { NextResponse } from "next/server";
 import { getDrive } from "@/lib/google";
 import { Readable } from "stream";
 import { isAllowedOrigin, allowedOrigins, VERCEL_PREVIEW } from "@/lib/origin-allowlist";
+import { matchesMagic, ALLOWED_TYPES } from "@/lib/magic-bytes";
 
 const MAX_SIZE = 25 * 1024 * 1024;
-
-const ALLOWED_TYPES = new Set([
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "image/jpeg",
-  "image/png",
-]);
-
-const MAGIC_BYTES: [string, Uint8Array][] = [
-  ["application/pdf", new Uint8Array([0x25, 0x50, 0x44, 0x46])],
-  ["image/png", new Uint8Array([0x89, 0x50, 0x4E, 0x47])],
-  ["image/jpeg", new Uint8Array([0xFF, 0xD8, 0xFF])],
-  ["application/msword", new Uint8Array([0xD0, 0xCF, 0x11, 0xE0])],
-  ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", new Uint8Array([0x50, 0x4B, 0x03, 0x04])],
-];
-
-function verifyMagicBytes(buffer: Buffer, declaredType: string): boolean {
-  for (const [mimeType, magic] of MAGIC_BYTES) {
-    if (mimeType === declaredType) {
-      if (buffer.length < magic.length) return false;
-      return magic.every((byte, i) => buffer[i] === byte);
-    }
-  }
-  return false;
-}
 
 function sanitizeFilename(name: string): string {
   return name
@@ -115,7 +90,7 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    if (!verifyMagicBytes(buffer, file.type)) {
+    if (!matchesMagic(buffer, file.type)) {
       return NextResponse.json(
         { error: "File content does not match declared type" },
         { status: 415 },
