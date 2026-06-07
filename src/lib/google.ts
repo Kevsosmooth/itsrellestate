@@ -23,7 +23,7 @@ function loadCredentials(): { client_email: string; private_key: string } {
   );
 }
 
-function getAuth() {
+export function getAuth() {
   if (cachedAuth) return cachedAuth;
 
   const creds = loadCredentials();
