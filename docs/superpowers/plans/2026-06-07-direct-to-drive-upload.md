@@ -50,6 +50,29 @@ We are NOT building the direct-to-Google path and NOT running the spike. Approac
 - **Phase 3:** do **Task 12B (chunk-proxy)** only; skip Task 12A.
 - **Task 16:** SKIP the CSP `connect-src` step — the browser only talks to our own same-origin `/api/upload/chunk`.
 
+**INTEGRATION NOTE (from Task 1):** the client form uses `__primary__` as the primary-applicant person key; the shared module + server manifest use `"primary"`. Occupant slots use the occupant's trimmed name on both sides. In Tasks 7 + 14 the client MUST normalize `__primary__` -> `"primary"` when sending a `slot` so client uploads match the server-computed manifest.
+
+## Execution progress (durable tracker)
+
+- **Task 1 — DONE (commit `7df47c6`)** — required-docs shared module; port verified faithful vs original client rule; `tsc` 0 errors; unit test passes via `npx tsx`.
+- **Task 2 — DONE (commit `6fef539`)** — exact-origin allowlist; replaced exploitable substring check in upload/tenant/landlord routes with `isAllowedOrigin` (guard: block only when origin present and not allowed); `host` removed; tsc 0; test passes. (Had to amend out an unnecessary root `package.json` `type:module` the subagent added.)
+- **Task 3 — DONE (commit `57148d8`)** — magic-bytes extracted to `src/lib/magic-bytes.ts` (`matchesMagic`, `ALLOWED_TYPES`) with honest limitation doc; route imports it; tsc 0; magic-bytes + upload-retry tests pass.
+- **Task 4 — DONE (commit `de35a2e`)** — `getSql` exported from applications-neon; migration script `scripts/2026-06-07-create-application-uploads.ts` (NOT yet run against the shared DB — controller will run it before integration testing).
+- **Task 5 — DONE (commit `d815fa2`)** — `src/lib/uploads-ledger.ts`: `requiredSlotsSatisfied` (pure, unit-tested) + parameterized DB wrappers (`recordMint`, `getByNonce`, `markStatus`, `listVerifiedSlots`, `countForApplication`); tsc 0; test passes.
+- **Runner FIXED (commit `8d19b2b`)** — `tsx` pinned as a local devDep (`^4.22.4`). **RUNNER = `pnpm exec tsx tests/<f>.unit.mts`** (add `--env-file=.env.local` only for tests importing env-touching modules). Do NOT use `npx tsx` (flaky) — the GLOBAL tsx 4.21.0 is broken for `.mts`->named-`.ts` imports. NEVER add `type:module` or create/modify package.json to make a test run; if a test won't run it's a runner issue to escalate to the controller.
+
+## DESIGN REVISION (during execution, 2026-06-07) — supersedes the "manifest" model in Tasks 4/5/7/8/10/11
+
+Doc categories can hold MULTIPLE files (`config.maxFiles`), so the original "one row per required slot + manifest written at app-POST" model is wrong. Revised model:
+
+- **`application_uploads` = one row per uploaded FILE**, keyed by a unique `nonce`. No `required` column, no separate manifest table, no manifest write at app-POST.
+- **Required documents are computed at check-time** from the stored form payload via `requiredDocSlots(formType, data)`. An application is **complete** when every required `(category, person)` slot has at least one `verified` upload row.
+- **Task 11 (apply routes):** do NOT write a manifest — just remove the tenant inline invoice block (form payload is already persisted to Neon `application_payloads` + Drive). 
+- **Task 10 (billing gate):** load the form payload from Neon, compute `requiredDocSlots`, compare against the application's `verified` upload rows; if all satisfied → take the invoice lock → create invoice.
+- **Task 5 pure function** becomes `requiredSlotsSatisfied(requiredSlots, verifiedSlots)` (every required slot has a matching verified upload), replacing `allRequiredVerified(rows)`.
+- **Export `getSql`** from `src/lib/applications-neon.ts` (currently an unexported `function getSql()`), so the ledger + billing modules reuse the same Neon client.
+- Person key normalization still applies (client `__primary__` -> `"primary"`).
+
 ## PHASE 0 (HISTORICAL — DO NOT EXECUTE) — Spike
 
 ### Task 0: Prove direct browser→Drive cross-origin resumable upload
@@ -105,7 +128,7 @@ git commit -m "docs(spike): record drive cross-origin upload feasibility"
 
 ## PHASE 1 — Shared foundation
 
-### Task 1: Required-docs shared module
+### Task 1: Required-docs shared module — DONE (7df47c6)
 
 **Files:**
 - Create: `src/lib/required-docs.ts`
