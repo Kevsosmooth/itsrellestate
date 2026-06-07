@@ -3,18 +3,7 @@ import { getDrive } from "@/lib/google";
 import { Readable } from "stream";
 import { isAllowedOrigin, allowedOrigins, VERCEL_PREVIEW } from "@/lib/origin-allowlist";
 import { matchesMagic, ALLOWED_TYPES } from "@/lib/magic-bytes";
-
-const MAX_SIZE = 25 * 1024 * 1024;
-
-function sanitizeFilename(name: string): string {
-  return name
-    .replace(/^[.\s]+/, "")
-    .replace(/[/\\:\0*?"<>|]/g, "_")
-    .replace(/\.{2,}/g, ".")
-    .replace(/\s{2,}/g, " ")
-    .trim()
-    .slice(0, 200) || "unnamed";
-}
+import { sanitizeFilename, MAX_FILE_SIZE } from "@/lib/upload-limits";
 
 async function isValidUploadFolder(folderId: string): Promise<boolean> {
   const tenantRoot = process.env.GOOGLE_TENANT_FOLDER_ID;
@@ -74,7 +63,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (file.size > MAX_SIZE) {
+    if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         { error: "File exceeds 25MB limit" },
         { status: 413 },

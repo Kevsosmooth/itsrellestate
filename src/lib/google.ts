@@ -92,7 +92,7 @@ async function findFolderByIdempotencyKey(
   };
 }
 
-async function findChildFolder(parentId: string, name: string): Promise<string | null> {
+export async function findChildFolder(parentId: string, name: string): Promise<string | null> {
   const drive = getDrive();
   const res = await drive.files.list({
     q: [

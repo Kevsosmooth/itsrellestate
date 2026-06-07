@@ -30,10 +30,19 @@ interface OccupantLike {
 
 // The per-person doc categories (photoId + socialSecurityCard are required for
 // every adult occupant, including the primary applicant).
-const PER_PERSON_DOC_CATEGORIES: readonly string[] = [
+export const PER_PERSON_DOC_CATEGORIES: readonly string[] = [
   "photoId",
   "socialSecurityCard",
 ];
+
+/**
+ * Maps an occupant's name to the Drive subfolder name using the same transform
+ * that getOrCreateApplicantFolder in google.ts applies when creating folders.
+ * Keeping both sides in sync avoids lookup mismatches.
+ */
+export function safeOccupantFolderName(person: string): string {
+  return person.replace(/[^a-zA-Z0-9 -]/g, "").replace(/\s+/g, "-");
+}
 
 // Used as the person identifier for the primary applicant in DocSlot.
 // The client form uses "__primary__" as its internal key; the shared module

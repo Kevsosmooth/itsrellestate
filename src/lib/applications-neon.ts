@@ -164,6 +164,24 @@ export async function upsertLandlordApplicationPayload(
 }
 
 /**
+ * Look up the Google Drive folder id for a submitted application.
+ * Reads from application_payloads — the table the upsert writes to on every
+ * submit — so the folder id is always current even after a re-submit.
+ *
+ * Returns null when the application does not exist or has no folder yet.
+ */
+export async function getApplicationFolderId(applicationId: string): Promise<string | null> {
+  const sql = getSql();
+  const rows = (await sql`
+    select drive_folder_id
+    from application_payloads
+    where application_id = ${applicationId}::text
+    limit 1
+  `) as { drive_folder_id: string | null }[];
+  return rows[0]?.drive_folder_id ?? null;
+}
+
+/**
  * Stamp the just-created Stripe invoice id onto the matching applications
  * + application_payloads rows in Neon. Called from the public-site invoice
  * creation flow so the webhook can later look up the application by
