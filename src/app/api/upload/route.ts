@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDrive } from "@/lib/google";
 import { Readable } from "stream";
+import { isAllowedOrigin, allowedOrigins, VERCEL_PREVIEW } from "@/lib/origin-allowlist";
 
 const MAX_SIZE = 25 * 1024 * 1024;
 
@@ -73,8 +74,7 @@ async function isValidUploadFolder(folderId: string): Promise<boolean> {
 export async function POST(request: Request) {
   try {
     const origin = request.headers.get("origin");
-    const host = request.headers.get("host");
-    if (origin && host && !origin.includes(host)) {
+    if (origin && !isAllowedOrigin(origin, allowedOrigins(), VERCEL_PREVIEW)) {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403 },

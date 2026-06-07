@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
+import { isAllowedOrigin, allowedOrigins, VERCEL_PREVIEW } from "@/lib/origin-allowlist";
 import {
   getOrCreateApplicantFolder,
   saveApplicationJSON,
@@ -33,8 +34,7 @@ function pathLabelFor(value: string): string {
 export async function POST(request: Request) {
   try {
     const origin = request.headers.get("origin");
-    const host = request.headers.get("host");
-    if (origin && host && !origin.includes(host)) {
+    if (origin && !isAllowedOrigin(origin, allowedOrigins(), VERCEL_PREVIEW)) {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403 },

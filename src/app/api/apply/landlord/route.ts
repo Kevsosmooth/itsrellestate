@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
+import { isAllowedOrigin, allowedOrigins, VERCEL_PREVIEW } from "@/lib/origin-allowlist";
 import {
   getOrCreateApplicantFolder,
   saveApplicationJSON,
@@ -18,8 +19,7 @@ const IDEMPOTENCY_KEY_RE = /^[a-zA-Z0-9_-]{8,128}$/;
 export async function POST(request: Request) {
   try {
     const origin = request.headers.get("origin");
-    const host = request.headers.get("host");
-    if (origin && host && !origin.includes(host)) {
+    if (origin && !isAllowedOrigin(origin, allowedOrigins(), VERCEL_PREVIEW)) {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403 },
