@@ -17,6 +17,12 @@ export interface ApplicationInvoiceParams {
   firstName: string;
   lastName: string;
   formType: "tenant" | "landlord";
+  /**
+   * When set, deterministic Stripe idempotency keys are derived from it so a
+   * retried or concurrent finalize cannot create a duplicate invoice / line
+   * item. Pass the stable applicationId.
+   */
+  idempotencyKey?: string;
 }
 
 export interface ApplicationInvoiceResult {
@@ -54,10 +60,20 @@ export function pickReusableInvoice(
   return null;
 }
 
+// Pure + exported for unit testing. Deterministic Stripe idempotency keys
+// derived from the application id; same id always yields the same keys so a
+// retry/concurrent call reuses (not duplicates) the invoice + line item.
+export function invoiceIdempotencyKeys(
+  applicationId: string,
+): { invoice: string; item: string } {
+  return { invoice: `inv-${applicationId}`, item: `item-${applicationId}` };
+}
+
 export async function createApplicationInvoice(
   params: ApplicationInvoiceParams,
 ): Promise<ApplicationInvoiceResult> {
-  const { email, firstName, lastName, formType } = params;
+  const { email, firstName, lastName, formType, idempotencyKey } = params;
+  const idem = idempotencyKey ? invoiceIdempotencyKeys(idempotencyKey) : null;
   const fullName = `${firstName} ${lastName}`.trim();
   const formTypeLabel = formType === "tenant" ? "Tenant" : "Landlord";
 
@@ -94,7 +110,7 @@ export async function createApplicationInvoice(
     },
     description: `${formTypeLabel} application processing fee for ${fullName}.`,
     footer: `Thank you for applying with ItsRellEstate. Submitted ${new Date().toLocaleDateString("en-US")}.`,
-  });
+  }, idem ? { idempotencyKey: idem.invoice } : undefined);
 
   if (!invoice.id) {
     throw new Error("Stripe invoice creation returned no id");
@@ -106,7 +122,7 @@ export async function createApplicationInvoice(
     amount: APPLICATION_FEE_CENTS,
     currency: "usd",
     description: `ItsRellEstate ${formTypeLabel} Application Processing Fee — ${fullName}`,
-  });
+  }, idem ? { idempotencyKey: idem.item } : undefined);
 
   const finalized = await stripe.invoices.finalizeInvoice(invoice.id);
   if (!finalized.id) {
