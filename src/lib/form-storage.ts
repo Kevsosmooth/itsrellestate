@@ -82,7 +82,6 @@ export function formatRelativeTime(timestamp: number): string {
 
 interface PendingSubmission {
   idempotencyKey: string;
-  uploadsFolderId?: string;
   applicationId?: string;
 }
 
@@ -114,17 +113,6 @@ export function getOrCreatePendingSubmission(formKey: string): PendingSubmission
     // ignore
   }
   return fresh;
-}
-
-export function setPendingUploadsFolderId(formKey: string, uploadsFolderId: string): void {
-  try {
-    const raw = localStorage.getItem(pendingKey(formKey));
-    const current = raw ? (JSON.parse(raw) as PendingSubmission) : { idempotencyKey: generateIdempotencyKey() };
-    const next: PendingSubmission = { ...current, uploadsFolderId };
-    localStorage.setItem(pendingKey(formKey), JSON.stringify(next));
-  } catch {
-    // ignore
-  }
 }
 
 export function setPendingApplicationId(formKey: string, applicationId: string): void {
