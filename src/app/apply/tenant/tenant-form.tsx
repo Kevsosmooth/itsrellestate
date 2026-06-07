@@ -29,6 +29,7 @@ import {
   PAY_FREQUENCY_OPTIONS, INCOME_SOURCE_OPTIONS, SECTION_8_PROGRAMS,
   PAYMENT_PATH_OPTIONS, DOC_CATEGORY_CONFIGS, type DocCategory,
 } from "@/lib/form-constants";
+import { requiredDocCategories } from "@/lib/required-docs";
 import {
   validateTenantStep1, validateTenantStep2, validateTenantStep3,
   validateTenantStep4, validateTenantStep5, validateTenantStep6,
@@ -49,34 +50,7 @@ function buildSteps(stagedAttachments: StagedAttachments): FormStepDef[] {
 let occupantIdCounter = 1;
 
 function getRequiredDocCategories(data: TenantFormData): DocCategory[] {
-  const required: DocCategory[] = ["photoId", "socialSecurityCard"];
-  const isVoucher = data.paymentPath === "voucher";
-  const isOutOfPocket = data.paymentPath === "out-of-pocket";
-  const isOtherPath = data.paymentPath === "other";
-  const isSection8 = isVoucher && SECTION_8_PROGRAMS.includes(data.assistProgram as typeof SECTION_8_PROGRAMS[number]);
-  const isCityFHEPS = isVoucher && data.assistProgram === "CityFHEPS";
-  const isHASA = isVoucher && data.assistProgram === "HASA";
-  const isOtherProgram = isVoucher && data.assistProgram === "Other";
-
-  if (isSection8) {
-    required.push("voucherCoverLetter", "pinLetter");
-  }
-  if (data.incomeSources.includes("cash-assistance")) {
-    required.push("cashAssistBudgetLetter");
-  }
-  if (data.incomeSources.includes("ssi")) {
-    required.push("ssiAwardLetter");
-  }
-  if (data.incomeSources.includes("food-stamps")) {
-    required.push("foodStampsLetter");
-  }
-  if (isCityFHEPS) {
-    required.push("fullVoucher");
-  }
-  if (isHASA || isOtherProgram || isOutOfPocket || isOtherPath) {
-    required.push("taxReturns", "bankStatement");
-  }
-  return required;
+  return requiredDocCategories("tenant", data as unknown as Record<string, unknown>) as DocCategory[];
 }
 
 function getVisibleDocCategories(data: TenantFormData): DocCategory[] {
