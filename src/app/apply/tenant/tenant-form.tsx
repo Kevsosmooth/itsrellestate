@@ -11,16 +11,16 @@ import { RepeaterField } from "@/components/forms/repeater-field";
 import { ConditionalBlock } from "@/components/forms/conditional-block";
 import { PaymentStep } from "@/components/forms/payment-step";
 import { FormSuccess } from "@/components/forms/form-success";
-import { FileUpload } from "@/components/forms/file-upload";
+import { FileUpload, type StagedFile } from "@/components/forms/file-upload";
 import type { TenantFormData, Occupant, FormStepDef, StagedAttachments } from "@/lib/form-types";
 import { createEmptyTenantForm, createEmptyStagedAttachments } from "@/lib/form-types";
-import { uploadFileWithRetry } from "@/lib/upload-file";
+import { uploadOne } from "@/lib/upload-file";
 import { formatPhone, formatZip, formatDOB } from "@/lib/form-formatters";
 import { sanitizeVoucherCaseNumber } from "@/lib/form-validators";
 import { isDev, devTenantData, devTenantDataCash, makeFakeStagedFile } from "@/lib/dev-autofill";
 import {
   TENANT_STORAGE_KEY,
-  clearFormState, getOrCreatePendingSubmission, setPendingUploadsFolderId,
+  clearFormState, getOrCreatePendingSubmission, setPendingApplicationId,
   clearPendingSubmission,
 } from "@/lib/form-storage";
 import {
@@ -160,40 +160,71 @@ function buildPrefixedFilename(
   return candidate;
 }
 
+type FileUploadStatus = "pending" | "uploading" | "verified" | "failed";
+
+// Normalize a staged file's `assignedTo` (a client-side key) to the `person`
+// value the server expects. The form's primary key is PRIMARY_APPLICANT_KEY
+// ("__primary__"); the server expects the literal "primary".
+function slotPersonFor(staged: StagedFile): string {
+  if (!staged.assignedTo || staged.assignedTo === PRIMARY_APPLICANT_KEY) return "primary";
+  return staged.assignedTo;
+}
+
+interface UploadRunResult {
+  failedNames: string[];
+}
+
+// Upload every staged file via mint/chunk/verify, skipping any file already
+// "verified" (so Retry only re-sends the ones that did not land — no duplicate
+// Drive files). Per-file status is tracked in `statuses` keyed by StagedFile.id.
 async function uploadAllStagedFiles(
   attachments: StagedAttachments,
-  uploadsFolderId: string,
-  occupantFolderIds: Record<string, string>,
-  onProgress?: (current: number, total: number) => void,
-): Promise<void> {
+  applicationId: string,
+  statuses: Map<string, FileUploadStatus>,
+  onProgress?: (current: number, total: number, percent: number) => void,
+): Promise<UploadRunResult> {
   const usedNames = new Set<string>();
   const entries = Object.entries(attachments) as [DocCategory, typeof attachments[DocCategory]][];
   const allFiles = entries.flatMap(([category, files]) =>
     files.map((staged) => ({ category, staged })),
   );
   const total = allFiles.length;
+  const failedNames: string[] = [];
 
   for (let i = 0; i < allFiles.length; i++) {
-    onProgress?.(i + 1, total);
     const { category, staged } = allFiles[i];
+    // Compute the prefixed name for EVERY file so the Nth file in a category is
+    // named deterministically regardless of which subset a retry re-sends.
     const prefixedName = buildPrefixedFilename(category, staged.fileName, usedNames);
-    const renamedFile = new File([staged.file], prefixedName, { type: staged.file.type });
 
-    let targetFolderId = uploadsFolderId;
-    if (
-      PER_PERSON_DOC_CATEGORIES.includes(category) &&
-      staged.assignedTo &&
-      staged.assignedTo !== PRIMARY_APPLICANT_KEY &&
-      occupantFolderIds[staged.assignedTo]
-    ) {
-      targetFolderId = occupantFolderIds[staged.assignedTo];
+    // Skip files that already verified on a previous attempt.
+    if (statuses.get(staged.id) === "verified") {
+      onProgress?.(i + 1, total, 100);
+      continue;
     }
 
-    const formData = new FormData();
-    formData.append("file", renamedFile);
-    formData.append("folderId", targetFolderId);
-    await uploadFileWithRetry(formData, staged.fileName);
+    statuses.set(staged.id, "uploading");
+    onProgress?.(i + 1, total, 0);
+
+    const renamedFile = new File([staged.file], prefixedName, { type: staged.file.type });
+    const slot = { category, person: slotPersonFor(staged) };
+
+    const result = await uploadOne(
+      renamedFile,
+      slot,
+      { applicationId, formType: "tenant" },
+      (fraction) => onProgress?.(i + 1, total, Math.round(fraction * 100)),
+    );
+
+    if (result.status === "verified") {
+      statuses.set(staged.id, "verified");
+    } else {
+      statuses.set(staged.id, "failed");
+      failedNames.push(result.error ?? `"${staged.fileName}" failed to upload.`);
+    }
   }
+
+  return { failedNames };
 }
 
 type SubmissionPhase =
@@ -234,11 +265,12 @@ export function TenantForm() {
   const [phase, setPhase] = useState<SubmissionPhase>("idle");
   const [submitProgress, setSubmitProgress] = useState("");
   const [submitError, setSubmitError] = useState("");
-  const [uploadsFolderId, setUploadsFolderId] = useState<string | null>(null);
-  const [folderId, setFolderId] = useState<string | null>(null);
-  const [occupantFolderIds, setOccupantFolderIds] = useState<Record<string, string>>({});
+  const [applicationId, setApplicationId] = useState<string | null>(null);
 
   const submitLockRef = useRef(false);
+  // Per-file upload status keyed by StagedFile.id. The authoritative source for
+  // skip-on-retry (verified files are not re-sent) across multiple Retry taps.
+  const fileStatusesRef = useRef<Map<string, FileUploadStatus>>(new Map());
 
   const steps = buildSteps(stagedAttachments);
 
@@ -250,15 +282,16 @@ export function TenantForm() {
     setData(restored as unknown as TenantFormData);
   }, []);
 
-  const runUploads = useCallback(async (folderId: string, occFolderIds: Record<string, string>) => {
+  const runUploads = useCallback(async (appId: string): Promise<UploadRunResult> => {
     const totalFiles = Object.values(stagedAttachments).flat().length;
-    if (totalFiles === 0) return;
+    if (totalFiles === 0) return { failedNames: [] };
     setPhase("uploading-files");
-    await uploadAllStagedFiles(
+    return uploadAllStagedFiles(
       stagedAttachments,
-      folderId,
-      occFolderIds,
-      (current, total) => setSubmitProgress(`Uploading ${current} of ${total} files...`),
+      appId,
+      fileStatusesRef.current,
+      (current, total, percent) =>
+        setSubmitProgress(`Uploading ${current} of ${total} files... ${percent}%`),
     );
   }, [stagedAttachments]);
 
@@ -270,11 +303,11 @@ export function TenantForm() {
     const pending = getOrCreatePendingSubmission(TENANT_STORAGE_KEY);
 
     try {
-      let currentFolderId = folderId;
-      let currentUploadsFolderId = uploadsFolderId;
-      let currentOccupantFolderIds = occupantFolderIds;
+      // Reuse an application id from a prior attempt (the app POST already
+      // succeeded) so a retry does NOT re-submit the application.
+      let currentApplicationId = applicationId ?? pending.applicationId ?? null;
 
-      if (!currentUploadsFolderId) {
+      if (!currentApplicationId) {
         setPhase("submitting-app");
         setSubmitProgress("Submitting application...");
 
@@ -291,39 +324,41 @@ export function TenantForm() {
           throw new Error(body?.error || "Submission failed");
         }
         const result = await res.json();
-        currentFolderId = result.folderId as string;
-        currentUploadsFolderId = result.uploadsFolderId as string;
-        currentOccupantFolderIds = (result.occupantFolderIds as Record<string, string>) ?? {};
-        if (currentFolderId) setFolderId(currentFolderId);
-        if (currentUploadsFolderId) {
-          setUploadsFolderId(currentUploadsFolderId);
-          setPendingUploadsFolderId(TENANT_STORAGE_KEY, currentUploadsFolderId);
+        currentApplicationId = result.applicationId as string;
+        if (currentApplicationId) {
+          setApplicationId(currentApplicationId);
+          setPendingApplicationId(TENANT_STORAGE_KEY, currentApplicationId);
         }
-        setOccupantFolderIds(currentOccupantFolderIds);
       }
 
-      if (currentUploadsFolderId) {
-        await runUploads(currentUploadsFolderId, currentOccupantFolderIds);
+      if (!currentApplicationId) {
+        throw new Error("Submission failed");
       }
 
-      // Note: we used to call /api/apply/tenant/finalize here to save a
-      // pre-rendered application.pdf into Drive. That step was removed
-      // because the CMS regenerates the PDF on demand from the saved
-      // application data — saving a stale copy at submit time was
-      // unnecessary and the flag-before-write race could mark a record
-      // "PDF generated" when no PDF actually existed.
+      const { failedNames } = await runUploads(currentApplicationId);
 
+      if (failedNames.length > 0) {
+        setSubmitError(failedNames.join(" "));
+        setPhase("upload-failed");
+        return;
+      }
+
+      // All files verified. The server already created the invoice during
+      // verification once the required docs landed, so there is no client
+      // billing/finalize step here.
       clearFormState(TENANT_STORAGE_KEY);
       clearPendingSubmission(TENANT_STORAGE_KEY);
       setPhase("complete");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       setSubmitError(message);
-      setPhase(uploadsFolderId ? "upload-failed" : "idle");
+      // If the app POST already succeeded (we have an id), the failure is in the
+      // upload phase and Retry should re-run uploads; otherwise return to idle.
+      setPhase(applicationId ?? pending.applicationId ? "upload-failed" : "idle");
     } finally {
       submitLockRef.current = false;
     }
-  }, [data, folderId, occupantFolderIds, runUploads, uploadsFolderId]);
+  }, [data, runUploads, applicationId]);
 
   if (phase === "complete") {
     return (
