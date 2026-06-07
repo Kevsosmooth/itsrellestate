@@ -19,9 +19,13 @@ const formLimiter = new Ratelimit({
   timeout: 3000,
 });
 
+// 300 req/60 s per IP: 1 session mint + ~7 chunk POSTs + 1 verify per file,
+// times several files per application — stays well under for a normal applicant
+// while blocking abuse. Fail-open (timeout: 3000) so a Redis outage never
+// blocks legitimate uploads.
 const uploadLimiter = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(20, "60 s"),
+  limiter: Ratelimit.slidingWindow(300, "60 s"),
   prefix: "itsrellestate:upload",
   timeout: 3000,
 });
@@ -40,7 +44,7 @@ export async function middleware(request: NextRequest) {
   if (!pathname.startsWith("/api/")) return NextResponse.next();
 
   const ip = getIP(request);
-  const isUpload = pathname === "/api/upload";
+  const isUpload = pathname.startsWith("/api/upload");
   const limiter = isUpload ? uploadLimiter : formLimiter;
 
   // Fail OPEN: if the rate-limit check throws (Redis unreachable, over its
@@ -75,5 +79,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/apply/:path*", "/api/upload"],
+  matcher: ["/api/apply/:path*", "/api/upload/:path*"],
 };
