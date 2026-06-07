@@ -395,27 +395,9 @@ export function FormWizard({
             )}
           >
             {isSubmitting ? (
-              <span className="flex flex-col items-center gap-1.5 w-full">
-                <span className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {submitProgress || "Submitting..."}
-                </span>
-                {uploadProgress !== undefined && uploadProgress > 0 && (
-                  <span className="w-full">
-                    <span
-                      className="block w-full h-2 rounded-full bg-primary/20 overflow-hidden"
-                    >
-                      <span
-                        role="progressbar"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round(uploadProgress * 100)}
-                        className="block h-2 rounded-full bg-primary/80 transition-[width] duration-300"
-                        style={{ width: `${Math.round(uploadProgress * 100)}%` }}
-                      />
-                    </span>
-                  </span>
-                )}
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Submitting...
               </span>
             ) : (
               submitLabel || "Submit Application"
@@ -436,6 +418,43 @@ export function FormWizard({
           </button>
         )}
       </div>
+
+      {/* Full-screen overlay during submit/upload: covers the screen, shows
+          progress, and blocks interaction (the submit button is disabled too). */}
+      {isSubmitting && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-dark/70 backdrop-blur-sm px-4"
+          role="alertdialog"
+          aria-modal="true"
+          aria-busy="true"
+          aria-label="Submitting your application"
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-card p-6 text-center shadow-xl">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-text-primary mb-1">
+              Submitting your application
+            </h2>
+            <p className="text-sm text-text-secondary mb-4" aria-live="polite">
+              {submitProgress || "Please wait…"}
+            </p>
+            {uploadProgress !== undefined && uploadProgress > 0 && (
+              <span className="block w-full h-2.5 rounded-full bg-primary/20 overflow-hidden">
+                <span
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(uploadProgress * 100)}
+                  className="block h-2.5 rounded-full bg-primary transition-[width] duration-300"
+                  style={{ width: `${Math.round(uploadProgress * 100)}%` }}
+                />
+              </span>
+            )}
+            <p className="text-xs text-text-muted mt-4">
+              Please keep this page open until it finishes.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
