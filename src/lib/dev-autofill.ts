@@ -1,7 +1,12 @@
 import type { TenantFormData, LandlordFormData } from "@/lib/form-types";
 import type { StagedFile } from "@/components/forms/file-upload";
 
-export const isDev = process.env.NODE_ENV === "development";
+// True in local dev, OR on a Vercel preview that opts in via
+// NEXT_PUBLIC_ENABLE_DEV_AUTOFILL=1 (set in the preview env scope only, never
+// production) so QA can auto-fill the long form when testing on a preview link.
+export const isDev =
+  process.env.NODE_ENV === "development" ||
+  process.env.NEXT_PUBLIC_ENABLE_DEV_AUTOFILL === "1";
 
 const FAKE_PDF_BYTES = new Uint8Array([
   0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a,

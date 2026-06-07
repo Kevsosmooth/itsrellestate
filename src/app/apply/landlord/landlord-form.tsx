@@ -13,7 +13,7 @@ import { FormSuccess } from "@/components/forms/form-success";
 import { FileUpload, type StagedFile } from "@/components/forms/file-upload";
 import type { FormStepDef, LandlordFormData, RentalUnit } from "@/lib/form-types";
 import { createEmptyLandlordForm } from "@/lib/form-types";
-import { uploadFileWithRetry } from "@/lib/upload-file";
+import { uploadOne } from "@/lib/upload-file";
 import {
   validateLandlordStep1,
   validateLandlordStep2,
@@ -45,7 +45,7 @@ import {
 } from "@/lib/form-constants";
 import {
   LANDLORD_STORAGE_KEY,
-  clearFormState, getOrCreatePendingSubmission, setPendingUploadsFolderId,
+  clearFormState, getOrCreatePendingSubmission, setPendingApplicationId,
   clearPendingSubmission,
 } from "@/lib/form-storage";
 import { isDev, devLandlordData, makeFakeStagedFile } from "@/lib/dev-autofill";
@@ -97,19 +97,56 @@ const STEPS: FormStepDef[] = [
 
 let unitIdCounter = 2;
 
+type FileUploadStatus = "pending" | "uploading" | "verified" | "failed";
+
+interface UploadRunResult {
+  failedNames: string[];
+}
+
+// Landlord documents are uncategorized; they all land in the application's
+// uploads folder. The server resolves the destination from the slot, so we send
+// a stable category and the primary person.
+const LANDLORD_DOC_SLOT = { category: "documents", person: "primary" } as const;
+
+// Upload every staged file via mint/chunk/verify, skipping any file already
+// "verified" (so Retry only re-sends the ones that did not land — no duplicate
+// Drive files). Per-file status is tracked in `statuses` keyed by StagedFile.id.
 async function uploadStagedFiles(
   files: StagedFile[],
-  uploadsFolderId: string,
-  onProgress?: (current: number, total: number) => void,
-): Promise<void> {
+  applicationId: string,
+  statuses: Map<string, FileUploadStatus>,
+  onProgress?: (current: number, total: number, percent: number) => void,
+): Promise<UploadRunResult> {
+  const total = files.length;
+  const failedNames: string[] = [];
+
   for (let i = 0; i < files.length; i++) {
-    onProgress?.(i + 1, files.length);
     const staged = files[i];
-    const formData = new FormData();
-    formData.append("file", staged.file);
-    formData.append("folderId", uploadsFolderId);
-    await uploadFileWithRetry(formData, staged.file.name);
+
+    if (statuses.get(staged.id) === "verified") {
+      onProgress?.(i + 1, total, 100);
+      continue;
+    }
+
+    statuses.set(staged.id, "uploading");
+    onProgress?.(i + 1, total, 0);
+
+    const result = await uploadOne(
+      staged.file,
+      LANDLORD_DOC_SLOT,
+      { applicationId, formType: "landlord" },
+      (fraction) => onProgress?.(i + 1, total, Math.round(fraction * 100)),
+    );
+
+    if (result.status === "verified") {
+      statuses.set(staged.id, "verified");
+    } else {
+      statuses.set(staged.id, "failed");
+      failedNames.push(result.error ?? `"${staged.file.name}" failed to upload.`);
+    }
   }
+
+  return { failedNames };
 }
 
 type SubmissionPhase =
@@ -125,10 +162,13 @@ export function LandlordForm() {
   const [phase, setPhase] = useState<SubmissionPhase>("idle");
   const [submitProgress, setSubmitProgress] = useState("");
   const [submitError, setSubmitError] = useState("");
-  const [uploadsFolderId, setUploadsFolderId] = useState<string | null>(null);
-  const [folderId, setFolderId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [applicationId, setApplicationId] = useState<string | null>(null);
 
   const submitLockRef = useRef(false);
+  // Per-file upload status keyed by StagedFile.id. The authoritative source for
+  // skip-on-retry (verified files are not re-sent) across multiple Retry taps.
+  const fileStatusesRef = useRef<Map<string, FileUploadStatus>>(new Map());
 
   const handleChange = useCallback((field: string, value: unknown) => {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -146,14 +186,21 @@ export function LandlordForm() {
     setStagedFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const runUploads = useCallback(async (folderId: string) => {
-    if (stagedFiles.length === 0) return;
+  const runUploads = useCallback(async (appId: string): Promise<UploadRunResult> => {
+    if (stagedFiles.length === 0) return { failedNames: [] };
     setPhase("uploading-files");
-    await uploadStagedFiles(
+    setUploadProgress(0);
+    const result = await uploadStagedFiles(
       stagedFiles,
-      folderId,
-      (current, total) => setSubmitProgress(`Uploading ${current} of ${total} files...`),
+      appId,
+      fileStatusesRef.current,
+      (current, total, percent) => {
+        setSubmitProgress(`Uploading ${current} of ${total} files... ${percent}%`);
+        setUploadProgress((current - 1 + percent / 100) / total);
+      },
     );
+    setUploadProgress(1);
+    return result;
   }, [stagedFiles]);
 
   const handleSubmit = useCallback(async () => {
@@ -164,10 +211,11 @@ export function LandlordForm() {
     const pending = getOrCreatePendingSubmission(LANDLORD_STORAGE_KEY);
 
     try {
-      let currentFolderId = folderId;
-      let currentUploadsFolderId = uploadsFolderId;
+      // Reuse an application id from a prior attempt (the app POST already
+      // succeeded) so a retry does NOT re-submit the application.
+      let currentApplicationId = applicationId ?? pending.applicationId ?? null;
 
-      if (!currentUploadsFolderId) {
+      if (!currentApplicationId) {
         setPhase("submitting-app");
         setSubmitProgress("Submitting application...");
 
@@ -184,35 +232,41 @@ export function LandlordForm() {
           throw new Error(body?.error || "Submission failed");
         }
         const result = await res.json();
-        currentFolderId = result.folderId as string;
-        currentUploadsFolderId = result.uploadsFolderId as string;
-        if (currentFolderId) setFolderId(currentFolderId);
-        if (currentUploadsFolderId) {
-          setUploadsFolderId(currentUploadsFolderId);
-          setPendingUploadsFolderId(LANDLORD_STORAGE_KEY, currentUploadsFolderId);
+        currentApplicationId = result.applicationId as string;
+        if (currentApplicationId) {
+          setApplicationId(currentApplicationId);
+          setPendingApplicationId(LANDLORD_STORAGE_KEY, currentApplicationId);
         }
       }
 
-      if (currentUploadsFolderId) {
-        await runUploads(currentUploadsFolderId);
+      if (!currentApplicationId) {
+        throw new Error("Submission failed");
       }
 
-      // Note: we used to call /api/apply/landlord/finalize here to save a
-      // pre-rendered application.pdf into Drive. That step was removed
-      // because the CMS regenerates the PDF on demand from the saved
-      // application data.
+      const { failedNames } = await runUploads(currentApplicationId);
 
+      if (failedNames.length > 0) {
+        setSubmitError(failedNames.join(" "));
+        setPhase("upload-failed");
+        return;
+      }
+
+      // All files verified. The server already created the invoice during
+      // verification once the required docs landed, so there is no client
+      // billing/finalize step here.
       clearFormState(LANDLORD_STORAGE_KEY);
       clearPendingSubmission(LANDLORD_STORAGE_KEY);
       setPhase("complete");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       setSubmitError(message);
-      setPhase(uploadsFolderId ? "upload-failed" : "idle");
+      // If the app POST already succeeded (we have an id), the failure is in the
+      // upload phase and Retry should re-run uploads; otherwise return to idle.
+      setPhase(applicationId ?? pending.applicationId ? "upload-failed" : "idle");
     } finally {
       submitLockRef.current = false;
     }
-  }, [data, folderId, runUploads, uploadsFolderId]);
+  }, [data, runUploads, applicationId]);
 
   if (phase === "complete") {
     return <FormSuccess type="landlord" firstName={data.llFirstName} />;
@@ -238,6 +292,7 @@ export function LandlordForm() {
       submitLabel={phase === "upload-failed" ? "Retry Upload" : undefined}
       submitProgress={submitProgress}
       submitError={submitError}
+      uploadProgress={uploadProgress}
       storageKey={LANDLORD_STORAGE_KEY}
       title="Landlord Application"
       devAutofill={isDev ? {

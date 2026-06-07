@@ -17,17 +17,63 @@ export interface ApplicationInvoiceParams {
   firstName: string;
   lastName: string;
   formType: "tenant" | "landlord";
+  /**
+   * When set, deterministic Stripe idempotency keys are derived from it so a
+   * retried or concurrent finalize cannot create a duplicate invoice / line
+   * item. Pass the stable applicationId.
+   */
+  idempotencyKey?: string;
 }
 
 export interface ApplicationInvoiceResult {
   invoiceId: string;
   invoiceUrl: string;
+  reused?: boolean;
+}
+
+// One application fee per applicant per ~90 days. A re-application inside the
+// window reuses the existing invoice instead of billing again.
+const INVOICE_DEDUP_DAYS = 90;
+
+type ReusableInvoice = {
+  id?: string | null;
+  created: number;
+  status: string | null;
+  hosted_invoice_url?: string | null;
+};
+
+// Pure + exported for unit testing. Returns the most recent still-valid invoice
+// within the window, or null. void/draft/uncollectible invoices never count, so
+// voiding a wrongful invoice lets a proper one be created later.
+export function pickReusableInvoice(
+  invoices: ReusableInvoice[],
+  nowSeconds: number,
+  windowDays: number = INVOICE_DEDUP_DAYS,
+): { id: string; hostedUrl: string | null } | null {
+  const cutoff = nowSeconds - windowDays * 24 * 60 * 60;
+  const blocked = new Set(["void", "draft", "uncollectible"]);
+  for (const inv of invoices) {
+    if (inv.id && inv.created >= cutoff && !blocked.has(inv.status ?? "")) {
+      return { id: inv.id, hostedUrl: inv.hosted_invoice_url ?? null };
+    }
+  }
+  return null;
+}
+
+// Pure + exported for unit testing. Deterministic Stripe idempotency keys
+// derived from the application id; same id always yields the same keys so a
+// retry/concurrent call reuses (not duplicates) the invoice + line item.
+export function invoiceIdempotencyKeys(
+  applicationId: string,
+): { invoice: string; item: string } {
+  return { invoice: `inv-${applicationId}`, item: `item-${applicationId}` };
 }
 
 export async function createApplicationInvoice(
   params: ApplicationInvoiceParams,
 ): Promise<ApplicationInvoiceResult> {
-  const { email, firstName, lastName, formType } = params;
+  const { email, firstName, lastName, formType, idempotencyKey } = params;
+  const idem = idempotencyKey ? invoiceIdempotencyKeys(idempotencyKey) : null;
   const fullName = `${firstName} ${lastName}`.trim();
   const formTypeLabel = formType === "tenant" ? "Tenant" : "Landlord";
 
@@ -39,6 +85,16 @@ export async function createApplicationInvoice(
         name: fullName,
         metadata: { application_type: formType },
       });
+
+  // 3-month dedup: if this applicant already has a valid recent invoice, reuse
+  // it rather than billing again on a re-application.
+  if (existing.data[0]) {
+    const recent = await stripe.invoices.list({ customer: customer.id, limit: 20 });
+    const prior = pickReusableInvoice(recent.data, Math.floor(Date.now() / 1000));
+    if (prior) {
+      return { invoiceId: prior.id, invoiceUrl: prior.hostedUrl ?? "", reused: true };
+    }
+  }
 
   const dueDate = Math.floor(Date.now() / 1000) + DUE_DAYS * 24 * 60 * 60;
   const invoice = await stripe.invoices.create({
@@ -54,7 +110,7 @@ export async function createApplicationInvoice(
     },
     description: `${formTypeLabel} application processing fee for ${fullName}.`,
     footer: `Thank you for applying with ItsRellEstate. Submitted ${new Date().toLocaleDateString("en-US")}.`,
-  });
+  }, idem ? { idempotencyKey: idem.invoice } : undefined);
 
   if (!invoice.id) {
     throw new Error("Stripe invoice creation returned no id");
@@ -66,7 +122,7 @@ export async function createApplicationInvoice(
     amount: APPLICATION_FEE_CENTS,
     currency: "usd",
     description: `ItsRellEstate ${formTypeLabel} Application Processing Fee — ${fullName}`,
-  });
+  }, idem ? { idempotencyKey: idem.item } : undefined);
 
   const finalized = await stripe.invoices.finalizeInvoice(invoice.id);
   if (!finalized.id) {

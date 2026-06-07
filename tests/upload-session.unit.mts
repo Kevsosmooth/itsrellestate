@@ -1,0 +1,11 @@
+import { strict as assert } from "node:assert";
+import { validateSessionInput } from "../src/app/api/upload/session/route.ts";
+const ok = { applicationId: "app1", formType: "tenant", slot: { category: "photoId", person: "primary" }, fileName: "id.pdf", mimeType: "application/pdf", size: 1000 };
+assert.equal(validateSessionInput(ok), null, "valid input passes");
+assert.equal(validateSessionInput({ ...ok, mimeType: "application/x-msdownload" })?.status, 415, "bad mime -> 415");
+assert.equal(validateSessionInput({ ...ok, size: 26 * 1024 * 1024 })?.status, 413, "too big -> 413");
+assert.equal(validateSessionInput({ ...ok, size: 0 })?.status, 400, "zero size -> 400");
+assert.equal(validateSessionInput({ ...ok, formType: "x" })?.status, 400, "bad formType -> 400");
+assert.equal(validateSessionInput({ ...ok, slot: { category: "photoId" } })?.status, 400, "bad slot -> 400");
+assert.equal(validateSessionInput(null)?.status, 400, "null body -> 400");
+console.log("upload-session ok");

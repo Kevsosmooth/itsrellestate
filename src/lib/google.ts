@@ -23,7 +23,7 @@ function loadCredentials(): { client_email: string; private_key: string } {
   );
 }
 
-function getAuth() {
+export function getAuth() {
   if (cachedAuth) return cachedAuth;
 
   const creds = loadCredentials();
@@ -92,7 +92,7 @@ async function findFolderByIdempotencyKey(
   };
 }
 
-async function findChildFolder(parentId: string, name: string): Promise<string | null> {
+export async function findChildFolder(parentId: string, name: string): Promise<string | null> {
   const drive = getDrive();
   const res = await drive.files.list({
     q: [

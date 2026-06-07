@@ -1,21 +1,17 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
+import { isAllowedOrigin, allowedOrigins, VERCEL_PREVIEW } from "@/lib/origin-allowlist";
 import {
   getOrCreateApplicantFolder,
   saveApplicationJSON,
   appendSheetRow,
-  appendStripeColumnsToRow,
   sendNotificationEmail,
   patchFolderProperties,
   getFolderProperties,
 } from "@/lib/google";
-import { createApplicationInvoice } from "@/lib/stripe";
 import { tenantSchema, sanitizeForStorage } from "@/lib/validation";
 import { upsertTenantContact } from "@/lib/contacts";
-import {
-  recordApplicationInvoice,
-  upsertTenantApplicationPayload,
-} from "@/lib/applications-neon";
+import { upsertTenantApplicationPayload } from "@/lib/applications-neon";
 
 export const runtime = "nodejs";
 
@@ -33,8 +29,7 @@ function pathLabelFor(value: string): string {
 export async function POST(request: Request) {
   try {
     const origin = request.headers.get("origin");
-    const host = request.headers.get("host");
-    if (origin && host && !origin.includes(host)) {
+    if (origin && !isAllowedOrigin(origin, allowedOrigins(), VERCEL_PREVIEW)) {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403 },
@@ -213,38 +208,6 @@ export async function POST(request: Request) {
       payload: sanitizedPayload,
     });
 
-    if (!folderProps.invoiceCreated) {
-      try {
-        const { invoiceId } = await createApplicationInvoice({
-          email: body.email,
-          firstName: body.firstName,
-          lastName: body.lastName,
-          formType: "tenant",
-        });
-        const rowNumber = parseInt(folderProps.sheetRowNumber ?? "0", 10);
-        if (rowNumber > 0) {
-          await appendStripeColumnsToRow(
-            "Tenant Applications",
-            rowNumber,
-            invoiceId,
-          );
-        }
-        // Stamp the invoice id onto the Neon row so the Stripe webhook
-        // can later flip status by looking up application by invoice id.
-        // Awaited-but-error-swallowing — Sheets remains the safety net.
-        await recordApplicationInvoice(applicationId, invoiceId);
-        await patchFolderProperties(folderId, {
-          invoiceCreated: "1",
-          invoiceId,
-        });
-      } catch (err) {
-        Sentry.captureException(err, {
-          tags: { route: "apply/tenant", step: "stripe-invoice" },
-        });
-        console.error("[stripe-invoice] failed to create invoice:", err);
-      }
-    }
-
     if (!folderProps.notificationSent) {
       sendNotificationEmail({
         formType: "tenant",
@@ -279,6 +242,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
+      applicationId,
       folderId,
       folderLink,
       uploadsFolderId,
