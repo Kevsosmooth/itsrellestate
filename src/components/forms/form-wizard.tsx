@@ -64,7 +64,10 @@ export function FormWizard({
   className,
   devAutofill,
 }: FormWizardProps) {
-  const isDev = process.env.NODE_ENV === "development";
+  // dev locally, or a preview that opted in (see dev-autofill.ts) — never prod
+  const isDev =
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_ENABLE_DEV_AUTOFILL === "1";
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection] = useState(0);
   const [errors, setErrors] = useState<ValidationErrors>({});
