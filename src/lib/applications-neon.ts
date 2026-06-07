@@ -164,6 +164,44 @@ export async function upsertLandlordApplicationPayload(
 }
 
 /**
+ * Fetch the minimal fields the billing gate needs for a single application.
+ * Returns null when the application_payloads row does not exist yet.
+ */
+export async function getApplicationRecord(applicationId: string): Promise<{
+  email: string | null;
+  payload: Record<string, unknown>;
+  folderId: string | null;
+  sheetRowNumber: number | null;
+} | null> {
+  const sql = getSql();
+  const rows = (await sql`
+    select applicant_email, payload_jsonb, drive_folder_id, sheet_row_number
+    from application_payloads
+    where application_id = ${applicationId}::text
+    limit 1
+  `) as {
+    applicant_email: string | null;
+    payload_jsonb: Record<string, unknown> | null;
+    drive_folder_id: string | null;
+    sheet_row_number: number | string | null;
+  }[];
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  const rawRow = row.sheet_row_number;
+  return {
+    email: row.applicant_email,
+    payload: row.payload_jsonb ?? {},
+    folderId: row.drive_folder_id,
+    sheetRowNumber:
+      rawRow === null
+        ? null
+        : typeof rawRow === "string"
+          ? parseInt(rawRow, 10)
+          : rawRow,
+  };
+}
+
+/**
  * Look up the Google Drive folder id for a submitted application.
  * Reads from application_payloads — the table the upsert writes to on every
  * submit — so the folder id is always current even after a re-submit.
