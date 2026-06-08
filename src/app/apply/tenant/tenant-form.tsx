@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { FormWizard, useWizardContext } from "@/components/forms/form-wizard";
 import { FormField } from "@/components/forms/form-field";
+import { EmailField } from "@/components/forms/email-field";
 import { FormSection } from "@/components/forms/form-section";
 import { FormInput, FormSelect } from "@/components/forms/form-input";
 import { PillSelect } from "@/components/forms/pill-select";
@@ -495,15 +496,15 @@ function Step1Contact({ data, onChange, errors }: StepProps) {
               placeholder="(555) 555-5555"
             />
           </FormField>
-          <FormField name="email" label="Email" required error={errors.email}>
-            <FormInput
-              type="email"
-              value={data.email}
-              onChange={(e) => onChange("email", e.target.value)}
-              autoComplete="email"
-              placeholder="you@example.com"
-            />
-          </FormField>
+          <EmailField
+            name="email"
+            label="Email"
+            required
+            error={errors.email}
+            value={data.email}
+            onChange={(v) => onChange("email", v)}
+            placeholder="you@example.com"
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -776,14 +777,14 @@ function Step2Assistance({ data, onChange, errors }: StepProps) {
                 placeholder="(555) 555-5555"
               />
             </FormField>
-            <FormField name="landlordEmail" label="Landlord Email" error={errors.landlordEmail}>
-              <FormInput
-                type="email"
-                value={data.landlordEmail}
-                onChange={(e) => onChange("landlordEmail", e.target.value)}
-                placeholder="landlord@example.com"
-              />
-            </FormField>
+            <EmailField
+              name="landlordEmail"
+              label="Landlord Email"
+              error={errors.landlordEmail}
+              value={data.landlordEmail}
+              onChange={(v) => onChange("landlordEmail", v)}
+              placeholder="landlord@example.com"
+            />
           </div>
         </ConditionalBlock>
       </FormSection>
@@ -1095,14 +1096,15 @@ function Step4Income({ data, onChange, errors }: StepProps) {
               placeholder="(555) 555-5555"
             />
           </FormField>
-          <FormField name="housingSpecEmail" label="Email" required={data.fromShelter === "yes"} error={errors.housingSpecEmail}>
-            <FormInput
-              type="email"
-              value={data.housingSpecEmail}
-              onChange={(e) => onChange("housingSpecEmail", e.target.value)}
-              placeholder="specialist@example.com"
-            />
-          </FormField>
+          <EmailField
+            name="housingSpecEmail"
+            label="Email"
+            required={data.fromShelter === "yes"}
+            error={errors.housingSpecEmail}
+            value={data.housingSpecEmail}
+            onChange={(v) => onChange("housingSpecEmail", v)}
+            placeholder="specialist@example.com"
+          />
         </div>
       </FormSection>
     </div>

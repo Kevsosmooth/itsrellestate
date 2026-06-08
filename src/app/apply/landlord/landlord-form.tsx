@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { FormWizard, useWizardContext } from "@/components/forms/form-wizard";
 import { FormField } from "@/components/forms/form-field";
+import { EmailField } from "@/components/forms/email-field";
 import { FormSection } from "@/components/forms/form-section";
 import { FormInput, FormSelect } from "@/components/forms/form-input";
 import { PillSelect } from "@/components/forms/pill-select";
@@ -668,15 +669,15 @@ function Step2MailingContact({ data, onChange, errors }: StepProps) {
             />
           </FormField>
 
-          <FormField name="llEmail" label="Email Address" required error={errors.llEmail}>
-            <FormInput
-              value={data.llEmail}
-              onChange={(e) => onChange("llEmail", e.target.value)}
-              placeholder="email@example.com"
-              type="email"
-              inputMode="email"
-            />
-          </FormField>
+          <EmailField
+            name="llEmail"
+            label="Email Address"
+            required
+            error={errors.llEmail}
+            value={data.llEmail}
+            onChange={(v) => onChange("llEmail", v)}
+            placeholder="email@example.com"
+          />
         </div>
       </FormSection>
 
@@ -725,15 +726,15 @@ function Step2MailingContact({ data, onChange, errors }: StepProps) {
               />
             </FormField>
 
-            <FormField name="authRepEmail" label="Email Address" required error={errors.authRepEmail}>
-              <FormInput
-                value={data.authRepEmail}
-                onChange={(e) => onChange("authRepEmail", e.target.value)}
-                placeholder="email@example.com"
-                type="email"
-                inputMode="email"
-              />
-            </FormField>
+            <EmailField
+              name="authRepEmail"
+              label="Email Address"
+              required
+              error={errors.authRepEmail}
+              value={data.authRepEmail}
+              onChange={(v) => onChange("authRepEmail", v)}
+              placeholder="email@example.com"
+            />
           </div>
         </ConditionalBlock>
       </FormSection>
@@ -1094,15 +1095,14 @@ function Step5PaymentsPOC({ data, onChange, errors }: StepProps) {
                 />
               </FormField>
 
-              <FormField name="zelleEmail" label="Zelle Email" error={errors.zelleEmail}>
-                <FormInput
-                  value={data.zelleEmail}
-                  onChange={(e) => onChange("zelleEmail", e.target.value)}
-                  placeholder="email@example.com"
-                  type="email"
-                  inputMode="email"
-                />
-              </FormField>
+              <EmailField
+                name="zelleEmail"
+                label="Zelle Email"
+                error={errors.zelleEmail}
+                value={data.zelleEmail}
+                onChange={(v) => onChange("zelleEmail", v)}
+                placeholder="email@example.com"
+              />
             </div>
           </ConditionalBlock>
 
@@ -1171,15 +1171,15 @@ function Step5PaymentsPOC({ data, onChange, errors }: StepProps) {
             />
           </FormField>
 
-          <FormField name="pocEmail" label="Email Address" required error={errors.pocEmail}>
-            <FormInput
-              value={data.pocEmail}
-              onChange={(e) => onChange("pocEmail", e.target.value)}
-              placeholder="email@example.com"
-              type="email"
-              inputMode="email"
-            />
-          </FormField>
+          <EmailField
+            name="pocEmail"
+            label="Email Address"
+            required
+            error={errors.pocEmail}
+            value={data.pocEmail}
+            onChange={(v) => onChange("pocEmail", v)}
+            placeholder="email@example.com"
+          />
         </div>
       </FormSection>
     </div>
